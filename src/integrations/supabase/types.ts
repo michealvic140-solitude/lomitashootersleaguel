@@ -738,6 +738,51 @@ export type Database = {
         }
         Relationships: []
       }
+      promo_code_requests: {
+        Row: {
+          admin_note: string | null
+          amount: number
+          created_at: string
+          generated_code: string | null
+          id: string
+          promo_id: string | null
+          reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          usage_limit: number
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          amount: number
+          created_at?: string
+          generated_code?: string | null
+          id?: string
+          promo_id?: string | null
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          usage_limit?: number
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          amount?: number
+          created_at?: string
+          generated_code?: string | null
+          id?: string
+          promo_id?: string | null
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          usage_limit?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       promo_codes: {
         Row: {
           amount: number
@@ -1041,6 +1086,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_delete_bet: {
+        Args: { _bet_id: string; _reason?: string; _refund?: boolean }
+        Returns: undefined
+      }
+      admin_suspend_bet: {
+        Args: { _bet_id: string; _reason?: string }
+        Returns: undefined
+      }
+      admin_unsuspend_bet: { Args: { _bet_id: string }; Returns: undefined }
+      approve_promo_request: {
+        Args: { _id: string; _note?: string }
+        Returns: string
+      }
       can_use_gang_chat: { Args: { _user_id: string }; Returns: boolean }
       create_withdrawal_request: {
         Args: {
@@ -1050,6 +1108,10 @@ export type Database = {
           _ticket?: string
         }
         Returns: string
+      }
+      decline_promo_request: {
+        Args: { _id: string; _note?: string }
+        Returns: undefined
       }
       has_role: {
         Args: {
