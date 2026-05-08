@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,14 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const nav = useNavigate();
+  const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) nav({ to: "/dashboard", replace: true });
+  }, [user, nav]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +32,8 @@ function LoginPage() {
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Welcome back!");
-    nav({ to: "/dashboard" });
+    // Hard navigate to ensure auth state is hydrated everywhere
+    window.location.href = "/dashboard";
   };
 
   return (
