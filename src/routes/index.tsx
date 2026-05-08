@@ -1,96 +1,203 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Coins, Flame, Swords, Trophy } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Layout } from "@/components/Layout";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MatchCard } from "@/components/MatchCard";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { MatchCardLive } from "@/components/MatchCardLive";
+import { EventBanner } from "@/components/EventBanner";
+import { AnnouncementSlider, HighlightsRow, AdsRow } from "@/components/HomeContent";
+import { Crosshair, Flame, Trophy, ChevronRight, Skull, Coins, Ticket as TicketIcon } from "lucide-react";
+import hero from "@/assets/hero.jpg";
+import { fetchMatches, fetchSettings, type MatchRow } from "@/lib/queries";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBetSlip } from "@/contexts/BetSlipContext";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
-  component: Index,
   head: () => ({
     meta: [
-      { title: "GangBet — Stake on the Winning Gang" },
-      { name: "description", content: "Live gang-vs-gang betting. Stake virtual coins, win the pool, climb the leaderboard." },
+      { title: "Lomita Shooters League — Virtual Token Shooting League" },
+      { name: "description", content: "Live matches, gang leaderboards and virtual-token wagering for the Lomita Shooters League." },
+      { property: "og:title", content: "Lomita Shooters League" },
+      { property: "og:image", content: hero },
     ],
   }),
+  component: Index,
 });
 
 function Index() {
-  const { data: matches } = useQuery({
-    queryKey: ["featured-matches"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("matches")
-        .select("*, gang_a:gangs!matches_gang_a_id_fkey(*), gang_b:gangs!matches_gang_b_id_fkey(*)")
-        .in("status", ["open", "live"])
-        .order("scheduled_at", { ascending: true })
-        .limit(6);
-      return data ?? [];
-    },
-  });
+  const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([fetchMatches(), fetchSettings()]).then(([m, s]) => { setMatches(m); setSettings(s); }).finally(() => setLoading(false));
+    const ch = supabase.channel("home-feed")
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => fetchMatches().then(setMatches))
+      .on("postgres_changes", { event: "*", schema: "public", table: "odds" }, () => fetchMatches().then(setMatches))
+      .on("postgres_changes", { event: "*", schema: "public", table: "markets" }, () => fetchMatches().then(setMatches))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_settings" }, () => fetchSettings().then(setSettings))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  const live = matches.filter((m) => m.status === "live");
+  const upcoming = matches.filter((m) => m.status === "scheduled");
+  const featured = matches.find((m) => m.is_featured) ?? upcoming[0];
+  const tagline = settings?.hero_tagline || "Season 4 · Live";
 
   return (
-    <div>
-      {/* HERO */}
-      <section className="relative overflow-hidden border-b border-border/60" style={{ backgroundImage: "var(--gradient-hero)" }}>
-        <div className="container mx-auto px-4 py-20 md:py-28">
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
-              <Flame className="size-3.5" /> Live betting now
-            </div>
-            <h1 className="text-4xl font-black uppercase leading-[1.05] tracking-tight md:text-7xl">
-              Stake your coins.<br />
-              <span className="bg-clip-text text-transparent" style={{ backgroundImage: "var(--gradient-gold)" }}>
-                Back the winning gang.
-              </span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground md:text-lg">
-              The underground betting hub for gang showdowns. Place your stake, ride the pool, take it all when your crew wins.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link to="/matches"><Button size="lg" className="font-bold uppercase">View matches</Button></Link>
-              <Link to="/auth"><Button size="lg" variant="outline" className="font-bold uppercase">Get 1,000 starter coins</Button></Link>
-            </div>
-
-            <div className="mt-12 grid grid-cols-3 gap-4 text-center">
-              <Stat icon={<Swords className="size-5" />} label="Live matches" value={matches?.length ?? 0} />
-              <Stat icon={<Coins className="size-5" />} label="Starter coins" value="1,000" />
-              <Stat icon={<Trophy className="size-5" />} label="Pool payout" value="100%" />
-            </div>
+    <Layout>
+      <section className="relative overflow-hidden">
+        <img src={hero} alt="" width={1920} height={1080} className="absolute inset-0 h-full w-full object-cover opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/80 to-background" />
+        <div className="container relative py-20 md:py-32">
+          <Badge variant="outline" className="border-primary/50 text-primary mb-4">
+            <Flame className="h-3 w-3 mr-1" /> {tagline}
+          </Badge>
+          <h1 className="text-4xl md:text-7xl font-bold leading-tight max-w-3xl">
+            Where gangs clash and{" "}
+            <span className="gradient-gold-text">legends</span> are{" "}
+            <span className="gradient-emerald-text">gold-plated</span>.
+          </h1>
+          <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+            The Lomita Shooters League is a virtual-token competitive shooting circuit. Pick your gang, place your wagers, and climb the leaderboard.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link to="/matches"><Button size="lg" className="btn-luxury">View Matches <ChevronRight className="h-4 w-4 ml-1" /></Button></Link>
+            <Link to="/leaderboard"><Button size="lg" variant="outline" className="border-primary/40">Leaderboard</Button></Link>
+            <Link to="/checkout"><Button size="lg" variant="outline" className="border-accent/40 text-accent"><Coins className="h-4 w-4 mr-1" />Buy Tokens</Button></Link>
           </div>
         </div>
       </section>
 
-      {/* FEATURED MATCHES */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h2 className="text-3xl font-black uppercase">Open Matches</h2>
-            <p className="text-sm text-muted-foreground">Back a gang before the lines close</p>
-          </div>
-          <Link to="/matches" className="text-sm font-bold uppercase text-primary hover:underline">View all →</Link>
+      <EventBanner />
+
+      {/* Highlights → Announcements → Ads → Matches */}
+      <HighlightsRow />
+      <AnnouncementSlider />
+      <AdsRow />
+
+      <BookingCodeRedeem />
+
+      <section className="container mt-10 grid lg:grid-cols-[1fr_280px] gap-6">
+        <div className="space-y-10">
+          {loading && <p className="text-muted-foreground">Loading league…</p>}
+          {!loading && live.length > 0 && (
+            <div>
+              <SectionHeader icon={Flame} title="Live Now" subtitle="Live odds. Markets close round-by-round." />
+              <div className="grid md:grid-cols-2 gap-4 mt-4">
+                {live.map((m) => <MatchCardLive key={m.id} match={m} />)}
+              </div>
+            </div>
+          )}
+          {!loading && (
+            <div>
+              <SectionHeader icon={Crosshair} title="Upcoming Matches" subtitle="Lock your picks before the round starts." />
+              {upcoming.length === 0 ? (
+                <p className="text-muted-foreground mt-4 text-sm">No upcoming matches scheduled.</p>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-4 mt-4">
+                  {upcoming.slice(0, 6).map((m) => <MatchCardLive key={m.id} match={m} />)}
+                </div>
+              )}
+            </div>
+          )}
+          {featured && (
+            <div>
+              <SectionHeader icon={Trophy} title="Featured Match" subtitle="The biggest matchup of the round." />
+              <div className="mt-4"><MatchCardLive match={featured} /></div>
+            </div>
+          )}
         </div>
 
-        {matches && matches.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {matches.map((m) => <MatchCard key={m.id} match={m as any} />)}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-border/60 p-12 text-center text-muted-foreground">
-            No open matches yet. {`{`}Admin can create one in the dashboard.{`}`}
-          </div>
-        )}
+        <aside className="lg:sticky lg:top-20 self-start">
+          <Card className="glass p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Skull className="h-4 w-4 text-primary" />
+              <div className="font-bold tracking-widest text-sm">LEAGUE STATS</div>
+            </div>
+            <Stat label="Active matches" value={matches.filter((m) => m.status !== "ended").length.toString()} />
+            <Stat label="Live now" value={live.length.toString()} />
+          </Card>
+        </aside>
       </section>
+    </Layout>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between py-1.5 border-b border-border last:border-0 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-bold text-primary">{value}</span>
     </div>
   );
 }
 
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+function BookingCodeRedeem() {
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const { add, clear } = useBetSlip();
+  const nav = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const c = params.get("code");
+    if (c) setCode(c.toUpperCase());
+  }, []);
+
+  async function load() {
+    if (!user) { nav({ to: "/login" }); return; }
+    if (!code.trim()) return;
+    setLoading(true);
+    const { data: bet } = await supabase.from("bets")
+      .select("id, booking_code, bet_selections(*, matches:match_id(name, status), markets:market_id(name))")
+      .eq("booking_code", code.trim().toUpperCase()).maybeSingle();
+    setLoading(false);
+    if (!bet) { toast.error("Booking code not found"); return; }
+    clear();
+    let added = 0;
+    (bet.bet_selections ?? []).forEach((s: any) => {
+      if (s.matches?.status !== "scheduled") return;
+      add({
+        match_id: s.match_id, match_name: s.matches?.name ?? "Match",
+        market_id: s.market_id, market_name: s.markets?.name ?? "Market",
+        odd_id: s.odd_id, selection_label: s.selection_label, odds: Number(s.locked_odds),
+      });
+      added++;
+    });
+    if (added === 0) { toast.error("All matches in that booking have already started"); return; }
+    toast.success(`Loaded ${added} pick(s) — set your stake and place the bet`);
+    nav({ to: "/matches" });
+  }
+
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 p-4 backdrop-blur">
-      <div className="mb-1 flex justify-center text-primary">{icon}</div>
-      <div className="text-2xl font-black">{value}</div>
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
+    <section className="container mt-8">
+      <Card className="glass-strong p-4 flex flex-wrap items-center gap-3">
+        <TicketIcon className="h-5 w-5 text-primary" />
+        <div className="flex-1 min-w-[200px]">
+          <div className="font-bold text-sm">Play a friend's booking</div>
+          <div className="text-xs text-muted-foreground">Paste a booking code to copy their picks to your slip.</div>
+        </div>
+        <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="BOOKING CODE" className="max-w-[200px] font-mono" />
+        <Button onClick={load} disabled={loading} className="btn-luxury">{loading ? "Loading…" : "Load picks"}</Button>
+      </Card>
+    </section>
+  );
+}
+
+function SectionHeader({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle: string }) {
+  return (
+    <div className="flex items-end justify-between border-b border-border pb-2">
+      <div>
+        <h2 className="text-2xl font-bold flex items-center gap-2"><Icon className="h-5 w-5 text-primary" />{title}</h2>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
+      </div>
     </div>
   );
 }

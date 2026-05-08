@@ -1,80 +1,83 @@
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "@tanstack/react-router";
-import { Coins, Clock, CircleDot } from "lucide-react";
+import { Countdown } from "./Countdown";
+import type { Match } from "@/lib/mock-data";
+import { Crosshair, Lock, MapPin } from "lucide-react";
 
-type Gang = { id: string; name: string; tag: string; color: string };
-export type MatchWithGangs = {
-  id: string;
-  title: string;
-  status: "open" | "live" | "closed" | "resolved" | "cancelled";
-  scheduled_at: string;
-  pool_a: number;
-  pool_b: number;
-  winner_gang_id: string | null;
-  gang_a: Gang;
-  gang_b: Gang;
-};
+interface Props {
+  match: Match;
+  selectedOddIds?: Set<string>;
+  onPick?: (matchId: string, oddId: string) => void;
+}
 
-export function MatchCard({ match }: { match: MatchWithGangs }) {
-  const total = match.pool_a + match.pool_b;
-  const oddsA = total > 0 ? total / Math.max(match.pool_a, 1) : 2;
-  const oddsB = total > 0 ? total / Math.max(match.pool_b, 1) : 2;
-
+export function MatchCard({ match, selectedOddIds, onPick }: Props) {
+  const locked = match.status === "live" || match.status === "ended";
   return (
-    <Link
-      to="/matches/$matchId"
-      params={{ matchId: match.id }}
-      className="group block rounded-xl border border-border/60 bg-card p-5 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-card)]"
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <StatusBadge status={match.status} />
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Clock className="size-3" />
-          {new Date(match.scheduled_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-        </span>
-      </div>
-      <h3 className="mb-4 line-clamp-1 font-bold">{match.title}</h3>
+    <Card className="glass p-4 hover:border-[var(--gold)]/60 transition-all group relative overflow-hidden">
+      {match.status === "live" && (
+        <div className="absolute top-0 right-0 px-2 py-0.5 text-[10px] font-bold tracking-widest text-destructive-foreground bg-destructive rounded-bl-md">
+          ● LIVE
+        </div>
+      )}
+      <Link to="/matches/$matchId" params={{ matchId: match.id }} className="block">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-muted-foreground">
+          <span>{match.name}</span>
+          <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{match.location}</span>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mt-3">
+          <Team name={match.home.name} color={match.home.color} score={match.homeScore} status={match.status} align="left" />
+          <div className="text-center">
+            <div className="text-[10px] text-muted-foreground">VS</div>
+            <Crosshair className="h-5 w-5 text-gold mx-auto" />
+          </div>
+          <Team name={match.away.name} color={match.away.color} score={match.awayScore} status={match.status} align="right" />
+        </div>
+        <div className="mt-3 text-xs text-muted-foreground text-center">
+          {match.status === "scheduled" && <>Starts in <Countdown target={match.startTime} /></>}
+          {match.status === "live" && <span className="text-destructive font-bold">Round in progress</span>}
+          {match.status === "ended" && <span>Final · {new Date(match.startTime).toLocaleDateString()}</span>}
+        </div>
+      </Link>
 
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <GangSide gang={match.gang_a} odds={oddsA} pool={match.pool_a} winner={match.winner_gang_id === match.gang_a.id} />
-        <div className="text-xs font-black uppercase text-muted-foreground">vs</div>
-        <GangSide gang={match.gang_b} odds={oddsB} pool={match.pool_b} winner={match.winner_gang_id === match.gang_b.id} align="right" />
+      <div className="mt-3 grid grid-cols-3 gap-1.5">
+        {match.odds.map((o) => {
+          const selected = selectedOddIds?.has(o.id);
+          return (
+            <button
+              key={o.id}
+              disabled={locked}
+              onClick={() => onPick?.(match.id, o.id)}
+              className={`px-2 py-2 rounded-md text-xs font-bold transition-all border ${
+                locked ? "bg-secondary/30 text-muted-foreground cursor-not-allowed border-transparent"
+                : selected ? "bg-gradient-gold text-[var(--primary-foreground)] border-transparent shadow-gold"
+                : "bg-secondary/40 text-foreground border-[var(--glass-border)] hover:border-[var(--gold)]/70 hover:bg-secondary/70"
+              }`}
+            >
+              <div className="text-[9px] uppercase tracking-wider opacity-80">{o.label}</div>
+              <div className="text-sm flex items-center justify-center gap-1">
+                {locked && <Lock className="h-3 w-3" />}{o.value.toFixed(2)}
+              </div>
+            </button>
+          );
+        })}
       </div>
-
-      <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1"><Coins className="size-3" /> Pool</span>
-        <span className="font-bold text-foreground">{total.toLocaleString()}</span>
+      <div className="mt-2 flex items-center justify-between">
+        <Badge variant="outline" className="text-[10px] border-[var(--glass-border)]">{match.market}</Badge>
+        <span className="text-[10px] text-muted-foreground">{match.odds.length} markets</span>
       </div>
-    </Link>
+    </Card>
   );
 }
 
-function GangSide({ gang, odds, pool, winner, align = "left" }: { gang: Gang; odds: number; pool: number; winner?: boolean; align?: "left" | "right" }) {
+function Team({ name, color, score, status, align }: { name: string; color: string; score: number; status: Match["status"]; align: "left" | "right" }) {
   return (
-    <div className={align === "right" ? "text-right" : ""}>
-      <div className={`mb-1 flex items-center gap-1.5 ${align === "right" ? "justify-end" : ""}`}>
-        <span className="size-2.5 rounded-full" style={{ backgroundColor: gang.color }} />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{gang.tag}</span>
-        {winner && <span className="text-[10px] font-bold text-success">★</span>}
+    <div className={`flex items-center gap-2 ${align === "right" ? "flex-row-reverse text-right" : ""}`}>
+      <div className="h-9 w-9 rounded-full ring-2 ring-[var(--glass-border)]" style={{ background: color }} />
+      <div className="min-w-0">
+        <div className="font-bold text-sm truncate">{name}</div>
+        {status !== "scheduled" && <div className="text-lg font-bold gradient-gold-text">{score}</div>}
       </div>
-      <div className="text-sm font-bold leading-tight">{gang.name}</div>
-      <div className="mt-1 text-lg font-black text-primary">{odds.toFixed(2)}x</div>
-      <div className="text-[10px] text-muted-foreground">{pool.toLocaleString()} staked</div>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string; icon?: React.ReactNode }> = {
-    open: { label: "Open", cls: "bg-success/15 text-success border-success/30" },
-    live: { label: "Live", cls: "bg-destructive/15 text-destructive border-destructive/30 animate-pulse", icon: <CircleDot className="size-2.5" /> },
-    closed: { label: "Closed", cls: "bg-muted text-muted-foreground border-border" },
-    resolved: { label: "Resolved", cls: "bg-primary/15 text-primary border-primary/30" },
-    cancelled: { label: "Cancelled", cls: "bg-muted text-muted-foreground border-border" },
-  };
-  const s = map[status] ?? map.open;
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${s.cls}`}>
-      {s.icon}{s.label}
-    </span>
   );
 }

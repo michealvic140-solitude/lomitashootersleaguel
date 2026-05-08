@@ -1,49 +1,79 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Trophy, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Layout } from "@/components/Layout";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { teamColor } from "@/lib/queries";
 
 export const Route = createFileRoute("/gangs")({
+  head: () => ({ meta: [{ title: "Gangs — LSL" }, { name: "description", content: "Factions of the Lomita Shooters League." }] }),
   component: GangsPage,
-  head: () => ({ meta: [{ title: "Gangs — GangBet" }] }),
 });
 
 function GangsPage() {
-  const { data } = useQuery({
-    queryKey: ["gangs"],
-    queryFn: async () => {
-      const { data } = await supabase.from("gangs").select("*").order("wins", { ascending: false });
-      return data ?? [];
-    },
-  });
+  const [gangs, setGangs] = useState<{ name: string; type: string | null; members: number; tokens: number; sample: string[] }[]>([]);
+
+  useEffect(() => {
+    supabase.from("profiles").select("full_name,gang_name,gang_type,token_balance").not("gang_name", "is", null)
+      .then(({ data }) => {
+        const m = new Map<string, any>();
+        (data ?? []).forEach((p: any) => {
+          if (!p.gang_name) return;
+          const cur = m.get(p.gang_name) ?? { name: p.gang_name, type: p.gang_type, members: 0, tokens: 0, sample: [] as string[] };
+          cur.members++; cur.tokens += p.token_balance ?? 0;
+          if (cur.sample.length < 4) cur.sample.push(p.full_name);
+          m.set(p.gang_name, cur);
+        });
+        setGangs(Array.from(m.values()).sort((a, b) => b.tokens - a.tokens));
+      });
+  }, []);
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <h1 className="mb-1 text-3xl font-black uppercase">The Gangs</h1>
-      <p className="mb-8 text-sm text-muted-foreground">Every crew in the hub. Back the right one.</p>
-
-      {data && data.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((g) => (
-            <div key={g.id} className="rounded-xl border border-border/60 bg-card p-5" style={{ borderTop: `3px solid ${g.color}` }}>
-              <div className="mb-2 flex items-center gap-2">
-                <span className="size-4 rounded-full" style={{ backgroundColor: g.color }} />
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{g.tag}</span>
+    <Layout>
+      <div className="container py-10">
+        <h1 className="text-4xl font-bold gradient-gold-text">Gangs of LSL</h1>
+        <p className="text-muted-foreground mt-2">Factions registered in the league. Found a new one when you join.</p>
+        {gangs.length === 0 && <Card className="glass p-6 mt-6 text-muted-foreground text-sm">No gangs yet — be the first to register one when you sign up.</Card>}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mt-8">
+          {gangs.map((g) => (
+            <Card key={g.name} className="glass p-5 relative overflow-hidden hover:border-primary/60 transition">
+              <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full opacity-20 blur-2xl" style={{ background: teamColor(g.name) }} />
+              <div className="relative">
+                <div className="flex items-start gap-3">
+                  <div className="h-14 w-14 rounded-lg ring-2 ring-border shrink-0" style={{ background: teamColor(g.name) }} />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-bold text-lg truncate">{g.name}</h2>
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Gang {g.type ?? ""}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-4 text-center">
+                  <Stat label="Members" value={g.members.toString()} />
+                  <Stat label="Tokens" value={g.tokens.toLocaleString()} />
+                </div>
+                <div className="mt-4 border-t border-border pt-3">
+                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1">
+                    <Users className="h-3 w-3" />Members
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {g.sample.map((s) => <Badge key={s} variant="outline" className="text-[10px] border-primary/30 text-primary">{s}</Badge>)}
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-black">{g.name}</h3>
-              {g.description && <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{g.description}</p>}
-              <div className="mt-4 flex gap-4 border-t border-border/60 pt-3 text-sm">
-                <span className="flex items-center gap-1 text-success"><Trophy className="size-4" /> {g.wins} W</span>
-                <span className="flex items-center gap-1 text-muted-foreground"><X className="size-4" /> {g.losses} L</span>
-              </div>
-            </div>
+            </Card>
           ))}
         </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-border/60 p-12 text-center text-muted-foreground">
-          No gangs yet. Admin can add some.
-        </div>
-      )}
+      </div>
+    </Layout>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-secondary/40 border border-border py-2">
+      <div className="font-bold text-primary">{value}</div>
+      <div className="text-[9px] uppercase tracking-widest text-muted-foreground">{label}</div>
     </div>
   );
 }
