@@ -1,63 +1,60 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Layout } from "@/components/Layout";
+import { MatchCardLive } from "@/components/MatchCardLive";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { fetchMatches, type MatchRow } from "@/lib/queries";
+import { Crosshair } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { MatchCard, type MatchWithGangs } from "@/components/MatchCard";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/matches")({
+  head: () => ({ meta: [{ title: "Matches — Lomita Shooters League" }, { name: "description", content: "Browse upcoming, live, and finished matches with live odds." }] }),
   component: MatchesPage,
-  head: () => ({ meta: [{ title: "All Matches — GangBet" }] }),
 });
 
 function MatchesPage() {
-  const [filter, setFilter] = useState<"all" | "open" | "live" | "resolved">("all");
+  const [matches, setMatches] = useState<MatchRow[]>([]);
+  useEffect(() => {
+    fetchMatches().then(setMatches);
+    const ch = supabase.channel("all-matches")
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => fetchMatches().then(setMatches))
+      .on("postgres_changes", { event: "*", schema: "public", table: "odds" }, () => fetchMatches().then(setMatches))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["matches", filter],
-    queryFn: async () => {
-      let q = supabase
-        .from("matches")
-        .select("*, gang_a:gangs!matches_gang_a_id_fkey(*), gang_b:gangs!matches_gang_b_id_fkey(*)")
-        .order("scheduled_at", { ascending: false });
-      if (filter !== "all") q = q.eq("status", filter);
-      const { data } = await q;
-      return (data ?? []) as MatchWithGangs[];
-    },
-  });
+  const groups = {
+    live: matches.filter((m) => m.status === "live"),
+    upcoming: matches.filter((m) => m.status === "scheduled"),
+    ended: matches.filter((m) => m.status === "ended"),
+  };
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-black uppercase">All Matches</h1>
-          <p className="text-sm text-muted-foreground">Pick your fight, place your stake</p>
+    <Layout>
+      <div className="container py-10">
+        <div className="flex items-center gap-2 mb-6">
+          <Crosshair className="h-7 w-7 text-primary" />
+          <h1 className="text-3xl font-bold gradient-gold-text">All Matches</h1>
         </div>
-        <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+        <Tabs defaultValue="upcoming">
           <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="open">Open</TabsTrigger>
-            <TabsTrigger value="live">Live</TabsTrigger>
-            <TabsTrigger value="resolved">Resolved</TabsTrigger>
+            <TabsTrigger value="live">Live ({groups.live.length})</TabsTrigger>
+            <TabsTrigger value="upcoming">Upcoming ({groups.upcoming.length})</TabsTrigger>
+            <TabsTrigger value="ended">Ended ({groups.ended.length})</TabsTrigger>
           </TabsList>
+          {(["live", "upcoming", "ended"] as const).map((k) => (
+            <TabsContent key={k} value={k} className="mt-4">
+              {groups[k].length === 0 ? (
+                <p className="text-muted-foreground text-sm">No matches in this section.</p>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {groups[k].map((m) => <MatchCardLive key={m.id} match={m} />)}
+                </div>
+              )}
+            </TabsContent>
+          ))}
         </Tabs>
       </div>
-
-      {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-52 animate-pulse rounded-xl border border-border/60 bg-card/50" />
-          ))}
-        </div>
-      ) : data && data.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((m) => <MatchCard key={m.id} match={m} />)}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-border/60 p-12 text-center text-muted-foreground">
-          No matches found.
-        </div>
-      )}
-    </div>
+    </Layout>
   );
 }
