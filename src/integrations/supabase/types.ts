@@ -1074,7 +1074,8 @@ export type Database = {
         | "registered"
         | "moderator"
         | "admin"
-      bet_status: "open" | "won" | "lost" | "cashed_out" | "void"
+        | "sponsor"
+      bet_status: "open" | "won" | "lost" | "cashed_out" | "void" | "suspended"
       chat_room: "general" | "gang" | "moderator"
       gang_type: "G" | "F"
       match_status: "scheduled" | "live" | "ended" | "cancelled"
@@ -1215,8 +1216,9 @@ export const Constants = {
         "registered",
         "moderator",
         "admin",
+        "sponsor",
       ],
-      bet_status: ["open", "won", "lost", "cashed_out", "void"],
+      bet_status: ["open", "won", "lost", "cashed_out", "void", "suspended"],
       chat_room: ["general", "gang", "moderator"],
       gang_type: ["G", "F"],
       match_status: ["scheduled", "live", "ended", "cancelled"],
