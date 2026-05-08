@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "viewer" | "shooter" | "gang_leader" | "registered" | "moderator" | "admin";
+export type AppRole = "viewer" | "shooter" | "gang_leader" | "registered" | "sponsor" | "moderator" | "admin";
 
 export interface Profile {
   id: string;
@@ -109,10 +109,11 @@ export const ROLE_COLORS: Record<AppRole, string> = {
   shooter: "bg-emerald/20 text-emerald border-emerald/40",
   gang_leader: "bg-gold/20 text-gold border-gold/40",
   registered: "bg-primary/20 text-primary border-primary/40",
+  sponsor: "bg-accent/20 text-accent border-accent/40",
   moderator: "bg-accent/20 text-accent border-accent/40",
   admin: "bg-destructive/20 text-destructive border-destructive/40",
 };
 export const ROLE_LABELS: Record<AppRole, string> = {
   viewer: "Viewer", shooter: "Shooter", gang_leader: "Gang Leader",
-  registered: "Registered", moderator: "Moderator", admin: "Admin",
+  registered: "Registered", sponsor: "Sponsor", moderator: "Moderator", admin: "Admin",
 };
