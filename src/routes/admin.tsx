@@ -299,7 +299,7 @@ function UserEditDialog({ user, roles, onClose }: { user: any; roles: string[]; 
             </div>
             <Select onValueChange={(v) => addRole(v as AppRole)}>
               <SelectTrigger><SelectValue placeholder="Add role…" /></SelectTrigger>
-              <SelectContent>{(["viewer", "shooter", "gang_leader", "registered", "moderator", "admin"] as AppRole[]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
+            <SelectContent>{(["viewer", "shooter", "gang_leader", "registered", "sponsor", "moderator", "admin"] as AppRole[]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
             </Select>
           </TabsContent>
           <TabsContent value="actions" className="space-y-3 mt-3">
@@ -1076,7 +1076,7 @@ function NotifyPanel() {
       {target === "role" && (
         <Select value={role} onValueChange={(v) => setRole(v as AppRole)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>{(["viewer", "shooter", "gang_leader", "registered", "moderator", "admin"] as AppRole[]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
+          <SelectContent>{(["viewer", "shooter", "gang_leader", "registered", "sponsor", "moderator", "admin"] as AppRole[]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
         </Select>
       )}
       {target === "user" && (
