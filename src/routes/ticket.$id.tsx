@@ -39,10 +39,13 @@ function TicketPage() {
   }, [id]);
 
   async function loadBet() {
-    const { data } = await supabase.from("bets")
-      .select("*, profiles:user_id(full_name), bet_selections(*, matches:match_id(name, status, home_score, away_score, home_team:home_team_id(name,logo_url), away_team:away_team_id(name,logo_url)), markets:market_id(name))")
+    const { data, error } = await supabase.from("bets")
+      .select("*, bet_selections(*, matches:match_id(name, status, home_score, away_score, home_team:home_team_id(name,logo_url), away_team:away_team_id(name,logo_url)), markets:market_id(name))")
       .eq("id", id).maybeSingle();
-    if (data) setBet(data);
+    if (error) { console.error("loadBet error", error); return; }
+    if (!data) return;
+    const { data: prof } = await supabase.from("profiles").select("full_name").eq("id", data.user_id).maybeSingle();
+    setBet({ ...data, profiles: prof });
   }
 
   if (!user) return <Layout><div className="container py-10"><Link to="/login" className="text-primary underline">Sign in</Link> to view tickets.</div></Layout>;
