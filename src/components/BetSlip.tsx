@@ -230,35 +230,44 @@ function PlacedPreview({ bet, onView, onClose }: { bet: any; onView: () => void;
   }
   return (
     <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
-        <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2" />
-        <div className="text-sm text-muted-foreground">Your bet has been booked</div>
-        <div className="font-extrabold text-lg gradient-gold-text mt-1">{bet.tracking_id}</div>
+      <div className="relative overflow-hidden rounded-2xl border border-primary/30 p-5 text-center bg-gradient-to-br from-primary/20 via-accent/10 to-emerald-500/10 shadow-[0_20px_60px_-20px_hsl(var(--primary)/0.5)]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--accent)/0.25),transparent_60%)] pointer-events-none" />
+        <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+        <div className="relative">
+          <div className="mx-auto h-12 w-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 grid place-items-center shadow-lg shadow-emerald-500/30 mb-3">
+            <CheckCircle2 className="h-7 w-7 text-white" />
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Ticket Booked</div>
+          <div className="font-extrabold text-xl gradient-gold-text mt-1 tracking-wider">{bet.tracking_id}</div>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Booking Code</div>
-          <button onClick={() => copy(bet.booking_code)} className="font-mono font-bold text-base inline-flex items-center gap-1 hover:text-primary">{bet.booking_code}<Copy className="h-3 w-3" /></button>
+      <div className="grid grid-cols-2 gap-2.5">
+        <button onClick={() => copy(bet.booking_code)} className="group rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/20 p-3 text-left hover:border-primary/50 transition">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Booking Code</div>
+          <div className="font-mono font-extrabold text-base inline-flex items-center gap-1 mt-0.5">{bet.booking_code}<Copy className="h-3 w-3 opacity-50 group-hover:opacity-100" /></div>
+        </button>
+        <div className="rounded-xl bg-gradient-to-br from-muted/60 to-muted/20 border border-border/50 p-3">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Stake</div>
+          <div className="font-bold mt-0.5">{Number(bet.stake).toLocaleString()}</div>
         </div>
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Stake</div>
-          <div className="font-bold">{Number(bet.stake).toLocaleString()}</div>
+        <div className="rounded-xl bg-gradient-to-br from-primary/15 to-transparent border border-primary/20 p-3">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Total Odds</div>
+          <div className="font-bold text-primary mt-0.5">{Number(bet.total_odds).toFixed(2)}</div>
         </div>
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Total Odds</div>
-          <div className="font-bold text-primary">{Number(bet.total_odds).toFixed(2)}</div>
-        </div>
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Potential Payout</div>
-          <div className="font-bold text-accent">{Number(bet._payout ?? bet.potential_payout).toLocaleString()}</div>
+        <div className="rounded-xl bg-gradient-to-br from-amber-500/15 via-accent/10 to-transparent border border-amber-500/30 p-3">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Potential Payout</div>
+          <div className="font-extrabold gradient-gold-text mt-0.5">{Number(bet._payout ?? bet.potential_payout).toLocaleString()}</div>
         </div>
       </div>
       <div className="space-y-2 max-h-[28vh] overflow-y-auto pr-1">
         <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Selections ({sels.length})</div>
         {sels.map((s: any) => (
-          <div key={s.odd_id} className="rounded-lg border border-border bg-background/40 p-2 text-xs">
+          <div key={s.odd_id} className="rounded-lg border border-border/60 bg-gradient-to-r from-background/60 to-muted/20 p-2.5 text-xs">
             <div className="font-bold truncate">{s.match_name}</div>
-            <div className="text-muted-foreground truncate">{s.market_name} · {s.selection_label} <span className="text-primary font-mono ml-1">{Number(s.odds).toFixed(2)}</span></div>
+            <div className="text-muted-foreground truncate flex items-center justify-between gap-2 mt-0.5">
+              <span className="truncate">{s.market_name} · {s.selection_label}</span>
+              <span className="text-primary font-mono font-bold shrink-0">{Number(s.odds).toFixed(2)}</span>
+            </div>
           </div>
         ))}
       </div>
