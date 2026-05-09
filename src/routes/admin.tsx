@@ -19,6 +19,7 @@ import { useAuth, ROLE_LABELS, type AppRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { fetchTeams } from "@/lib/queries";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { TicketTrackerPanel } from "@/components/admin/TicketTrackerPanel";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin — LSL" }, { name: "description", content: "League administration dashboard." }] }),
@@ -53,6 +54,7 @@ function AdminPage() {
             <TabsTrigger value="promos"><Tag className="h-3 w-3 mr-1" />Promo Codes</TabsTrigger>
             <TabsTrigger value="content"><Megaphone className="h-3 w-3 mr-1" />Content</TabsTrigger>
             <TabsTrigger value="tickets"><Ticket className="h-3 w-3 mr-1" />Tickets</TabsTrigger>
+            <TabsTrigger value="tracker"><Radio className="h-3 w-3 mr-1" />Tracker</TabsTrigger>
             <TabsTrigger value="appeals"><AlertTriangle className="h-3 w-3 mr-1" />Appeals</TabsTrigger>
             <TabsTrigger value="notify"><Send className="h-3 w-3 mr-1" />Notify</TabsTrigger>
             <TabsTrigger value="audit"><History className="h-3 w-3 mr-1" />Audit</TabsTrigger>
@@ -68,6 +70,7 @@ function AdminPage() {
           <TabsContent value="promos" className="mt-4"><PromoPanel /></TabsContent>
           <TabsContent value="content" className="mt-4"><ContentPanel /></TabsContent>
           <TabsContent value="tickets" className="mt-4"><TicketsPanel /></TabsContent>
+          <TabsContent value="tracker" className="mt-4"><TicketTrackerPanel /></TabsContent>
           <TabsContent value="appeals" className="mt-4"><AppealsPanel /></TabsContent>
           <TabsContent value="notify" className="mt-4"><NotifyPanel /></TabsContent>
           <TabsContent value="audit" className="mt-4"><AuditPanel /></TabsContent>
