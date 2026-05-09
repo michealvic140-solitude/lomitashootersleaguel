@@ -105,7 +105,7 @@ export function TicketTrackerPanel() {
       tone: "danger",
     });
     if (!ok) return;
-    const { error } = await supabase.rpc("admin_void_selection", { _selection_id: sel.id, _reason: reason || null });
+    const { error } = await supabase.rpc("admin_void_selection", { _selection_id: sel.id, _reason: reason || undefined });
     if (error) return toast.error(error.message);
     toast.success("Selection voided");
     await refresh();
@@ -115,7 +115,7 @@ export function TicketTrackerPanel() {
     if (!bet) return;
     const ok = await confirm({ title: "Suspend ticket?", description: "User won't be paid out until you unsuspend.", confirmText: "Suspend" });
     if (!ok) return;
-    const { error } = await supabase.rpc("admin_suspend_bet", { _bet_id: bet.id, _reason: reason || null });
+    const { error } = await supabase.rpc("admin_suspend_bet", { _bet_id: bet.id, _reason: reason || undefined });
     if (error) return toast.error(error.message);
     toast.success("Ticket suspended"); await refresh();
   }
@@ -136,7 +136,7 @@ export function TicketTrackerPanel() {
       tone: "danger",
     });
     if (!ok) return;
-    const { error } = await supabase.rpc("admin_refund_bet", { _bet_id: bet.id, _reason: reason || null });
+    const { error } = await supabase.rpc("admin_refund_bet", { _bet_id: bet.id, _reason: reason || undefined });
     if (error) return toast.error(error.message);
     toast.success("Ticket refunded"); await refresh();
   }
@@ -151,7 +151,7 @@ export function TicketTrackerPanel() {
     });
     if (!ok) return;
     const refundOk = await confirm({ title: "Refund stake?", description: "Credit the user's stake back?", confirmText: "Yes, refund", cancelText: "No, just delete" });
-    const { error } = await supabase.rpc("admin_delete_bet", { _bet_id: bet.id, _refund: refundOk, _reason: reason || null });
+    const { error } = await supabase.rpc("admin_delete_bet", { _bet_id: bet.id, _refund: refundOk, _reason: reason || undefined });
     if (error) return toast.error(error.message);
     toast.success("Ticket deleted"); setBet(null); await loadRecent();
   }
