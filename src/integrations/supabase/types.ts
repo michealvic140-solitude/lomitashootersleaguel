@@ -1090,11 +1090,19 @@ export type Database = {
         Args: { _bet_id: string; _reason?: string; _refund?: boolean }
         Returns: undefined
       }
+      admin_refund_bet: {
+        Args: { _bet_id: string; _reason?: string }
+        Returns: undefined
+      }
       admin_suspend_bet: {
         Args: { _bet_id: string; _reason?: string }
         Returns: undefined
       }
       admin_unsuspend_bet: { Args: { _bet_id: string }; Returns: undefined }
+      admin_void_selection: {
+        Args: { _reason?: string; _selection_id: string }
+        Returns: undefined
+      }
       approve_promo_request: {
         Args: { _id: string; _note?: string }
         Returns: string
