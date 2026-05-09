@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Ticket, X, ChevronUp, ChevronDown, Trash2, Coins, CheckCircle2, Copy, Share2, ExternalLink } from "lucide-react";
+import { Ticket, X, ChevronUp, ChevronDown, Trash2, Coins, CheckCircle2, Copy, Share2, ExternalLink, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export function BetSlipFab() {
@@ -28,21 +28,26 @@ export function BetSlipFab() {
 function FabShell({ onClick, count }: { onClick: () => void; count: number }) {
   if (count === 0) return null;
   return (
-    <button onClick={onClick}
-      className="fixed bottom-24 md:bottom-6 right-4 z-40 h-14 px-5 rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-2xl flex items-center gap-2 font-bold backdrop-blur-xl border border-primary/30 hover:scale-105 transition">
+    <button
+      onClick={onClick}
+      className="fixed bottom-24 md:bottom-6 right-4 z-40 h-14 px-5 rounded-full bg-gradient-to-r from-primary via-accent to-primary text-primary-foreground shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.6)] flex items-center gap-2 font-bold backdrop-blur-xl border border-primary/40 hover:scale-105 active:scale-95 transition animate-in fade-in slide-in-from-bottom-2"
+      aria-label={`Open bet slip with ${count} selection${count === 1 ? "" : "s"}`}
+    >
       <Ticket className="h-5 w-5" />
-      <span>Bet Slip</span>
-      <span className="bg-background/30 text-xs rounded-full h-6 min-w-6 px-2 grid place-items-center">{count}</span>
+      <span className="hidden sm:inline">Bet Slip</span>
+      <span className="bg-background/30 text-xs rounded-full h-6 min-w-6 px-2 grid place-items-center font-mono">{count}</span>
     </button>
   );
 }
 
 function BetSlipDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { selections, remove, clear, reorder, totalOdds, stake, setStake } = useBetSlip();
+  const { selections, remove, clear, reorder, totalOdds, stake, setStake, add } = useBetSlip();
   const { user, profile, refresh } = useAuth();
   const [minStake, setMinStake] = useState(2_000_000);
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState<any>(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [loadingCode, setLoadingCode] = useState(false);
   const confirm = useConfirm();
   const nav = useNavigate();
 
@@ -97,6 +102,39 @@ function BetSlipDrawer({ open, onClose }: { open: boolean; onClose: () => void }
 
   function closeAll() { setPlaced(null); onClose(); }
 
+  async function loadByBookingCode() {
+    const code = codeInput.trim().toUpperCase();
+    if (!code) return;
+    setLoadingCode(true);
+    try {
+      const { data: bet, error } = await supabase
+        .from("bets")
+        .select("id, booking_code")
+        .eq("booking_code", code)
+        .maybeSingle();
+      if (error || !bet) { toast.error("Booking code not found"); return; }
+      const { data: sels, error: se } = await supabase
+        .from("bet_selections")
+        .select("match_id, market_id, odd_id, locked_odds, selection_label, markets(name, matches(name))")
+        .eq("bet_id", bet.id);
+      if (se || !sels?.length) { toast.error("No selections on this code"); return; }
+      clear();
+      sels.forEach((s: any) => {
+        add({
+          match_id: s.match_id,
+          match_name: s.markets?.matches?.name ?? "Match",
+          market_id: s.market_id,
+          market_name: s.markets?.name ?? "Market",
+          odd_id: s.odd_id,
+          selection_label: s.selection_label,
+          odds: Number(s.locked_odds),
+        });
+      });
+      setCodeInput("");
+      toast.success(`Loaded ${sels.length} selection${sels.length === 1 ? "" : "s"} from ${code}`);
+    } finally { setLoadingCode(false); }
+  }
+
   return (
     <Sheet open={open} onOpenChange={(v) => !v && closeAll()}>
       <SheetContent side="right" className="w-full sm:max-w-md backdrop-blur-2xl bg-card/80 border-l-primary/30">
@@ -110,6 +148,23 @@ function BetSlipDrawer({ open, onClose }: { open: boolean; onClose: () => void }
           <PlacedPreview bet={placed} onView={() => { closeAll(); nav({ to: "/ticket/$id", params: { id: placed.id } }); }} onClose={closeAll} />
         ) : (
         <>
+        <div className="mt-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 p-3">
+          <label className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+            <Sparkles className="h-3 w-3" /> Load a booking code
+          </label>
+          <div className="flex gap-2 mt-1.5">
+            <Input
+              value={codeInput}
+              onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+              placeholder="e.g. A1B2C3D4"
+              className="font-mono uppercase tracking-wider h-9"
+              onKeyDown={(e) => { if (e.key === "Enter") loadByBookingCode(); }}
+            />
+            <Button size="sm" variant="outline" disabled={loadingCode || !codeInput.trim()} onClick={loadByBookingCode}>
+              <Search className="h-3.5 w-3.5 mr-1" />{loadingCode ? "…" : "Load"}
+            </Button>
+          </div>
+        </div>
         <div className="mt-4 space-y-3 max-h-[55vh] overflow-y-auto pr-1">
           {selections.length === 0 && <p className="text-sm text-muted-foreground">No selections yet. Tap odds on a match to add.</p>}
           {selections.map((s, i) => (
@@ -175,35 +230,44 @@ function PlacedPreview({ bet, onView, onClose }: { bet: any; onView: () => void;
   }
   return (
     <div className="mt-4 space-y-4">
-      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
-        <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2" />
-        <div className="text-sm text-muted-foreground">Your bet has been booked</div>
-        <div className="font-extrabold text-lg gradient-gold-text mt-1">{bet.tracking_id}</div>
+      <div className="relative overflow-hidden rounded-2xl border border-primary/30 p-5 text-center bg-gradient-to-br from-primary/20 via-accent/10 to-emerald-500/10 shadow-[0_20px_60px_-20px_hsl(var(--primary)/0.5)]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--accent)/0.25),transparent_60%)] pointer-events-none" />
+        <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+        <div className="relative">
+          <div className="mx-auto h-12 w-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 grid place-items-center shadow-lg shadow-emerald-500/30 mb-3">
+            <CheckCircle2 className="h-7 w-7 text-white" />
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Ticket Booked</div>
+          <div className="font-extrabold text-xl gradient-gold-text mt-1 tracking-wider">{bet.tracking_id}</div>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Booking Code</div>
-          <button onClick={() => copy(bet.booking_code)} className="font-mono font-bold text-base inline-flex items-center gap-1 hover:text-primary">{bet.booking_code}<Copy className="h-3 w-3" /></button>
+      <div className="grid grid-cols-2 gap-2.5">
+        <button onClick={() => copy(bet.booking_code)} className="group rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/20 p-3 text-left hover:border-primary/50 transition">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Booking Code</div>
+          <div className="font-mono font-extrabold text-base inline-flex items-center gap-1 mt-0.5">{bet.booking_code}<Copy className="h-3 w-3 opacity-50 group-hover:opacity-100" /></div>
+        </button>
+        <div className="rounded-xl bg-gradient-to-br from-muted/60 to-muted/20 border border-border/50 p-3">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Stake</div>
+          <div className="font-bold mt-0.5">{Number(bet.stake).toLocaleString()}</div>
         </div>
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Stake</div>
-          <div className="font-bold">{Number(bet.stake).toLocaleString()}</div>
+        <div className="rounded-xl bg-gradient-to-br from-primary/15 to-transparent border border-primary/20 p-3">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Total Odds</div>
+          <div className="font-bold text-primary mt-0.5">{Number(bet.total_odds).toFixed(2)}</div>
         </div>
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Total Odds</div>
-          <div className="font-bold text-primary">{Number(bet.total_odds).toFixed(2)}</div>
-        </div>
-        <div className="rounded-xl bg-muted/40 p-3">
-          <div className="text-[10px] uppercase text-muted-foreground">Potential Payout</div>
-          <div className="font-bold text-accent">{Number(bet._payout ?? bet.potential_payout).toLocaleString()}</div>
+        <div className="rounded-xl bg-gradient-to-br from-amber-500/15 via-accent/10 to-transparent border border-amber-500/30 p-3">
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Potential Payout</div>
+          <div className="font-extrabold gradient-gold-text mt-0.5">{Number(bet._payout ?? bet.potential_payout).toLocaleString()}</div>
         </div>
       </div>
       <div className="space-y-2 max-h-[28vh] overflow-y-auto pr-1">
         <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Selections ({sels.length})</div>
         {sels.map((s: any) => (
-          <div key={s.odd_id} className="rounded-lg border border-border bg-background/40 p-2 text-xs">
+          <div key={s.odd_id} className="rounded-lg border border-border/60 bg-gradient-to-r from-background/60 to-muted/20 p-2.5 text-xs">
             <div className="font-bold truncate">{s.match_name}</div>
-            <div className="text-muted-foreground truncate">{s.market_name} · {s.selection_label} <span className="text-primary font-mono ml-1">{Number(s.odds).toFixed(2)}</span></div>
+            <div className="text-muted-foreground truncate flex items-center justify-between gap-2 mt-0.5">
+              <span className="truncate">{s.market_name} · {s.selection_label}</span>
+              <span className="text-primary font-mono font-bold shrink-0">{Number(s.odds).toFixed(2)}</span>
+            </div>
           </div>
         ))}
       </div>
