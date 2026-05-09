@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Ticket, X, ChevronUp, ChevronDown, Trash2, Coins, CheckCircle2, Copy, Share2, ExternalLink } from "lucide-react";
+import { Ticket, X, ChevronUp, ChevronDown, Trash2, Coins, CheckCircle2, Copy, Share2, ExternalLink, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export function BetSlipFab() {
@@ -28,11 +28,14 @@ export function BetSlipFab() {
 function FabShell({ onClick, count }: { onClick: () => void; count: number }) {
   if (count === 0) return null;
   return (
-    <button onClick={onClick}
-      className="fixed bottom-24 md:bottom-6 right-4 z-40 h-14 px-5 rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-2xl flex items-center gap-2 font-bold backdrop-blur-xl border border-primary/30 hover:scale-105 transition">
+    <button
+      onClick={onClick}
+      className="fixed bottom-24 md:bottom-6 right-4 z-40 h-14 px-5 rounded-full bg-gradient-to-r from-primary via-accent to-primary text-primary-foreground shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.6)] flex items-center gap-2 font-bold backdrop-blur-xl border border-primary/40 hover:scale-105 active:scale-95 transition animate-in fade-in slide-in-from-bottom-2"
+      aria-label={`Open bet slip with ${count} selection${count === 1 ? "" : "s"}`}
+    >
       <Ticket className="h-5 w-5" />
-      <span>Bet Slip</span>
-      <span className="bg-background/30 text-xs rounded-full h-6 min-w-6 px-2 grid place-items-center">{count}</span>
+      <span className="hidden sm:inline">Bet Slip</span>
+      <span className="bg-background/30 text-xs rounded-full h-6 min-w-6 px-2 grid place-items-center font-mono">{count}</span>
     </button>
   );
 }
