@@ -102,7 +102,7 @@ export function TicketTrackerPanel() {
       title: "Void this selection?",
       description: `This marks "${sel.selection_label}" as void and recalculates odds. The user will be notified.`,
       confirmText: "Void selection",
-      variant: "destructive",
+      tone: "danger",
     });
     if (!ok) return;
     const { error } = await supabase.rpc("admin_void_selection", { _selection_id: sel.id, _reason: reason || null });
@@ -133,7 +133,7 @@ export function TicketTrackerPanel() {
       title: "Refund ticket?",
       description: `Stake of ${fmt(bet.stake)} tokens will be credited back to the user. Ticket will be closed.`,
       confirmText: "Refund",
-      variant: "destructive",
+      tone: "danger",
     });
     if (!ok) return;
     const { error } = await supabase.rpc("admin_refund_bet", { _bet_id: bet.id, _reason: reason || null });
@@ -147,7 +147,7 @@ export function TicketTrackerPanel() {
       title: "Delete ticket?",
       description: "This permanently removes the ticket. Optionally refund the user's stake.",
       confirmText: "Delete",
-      variant: "destructive",
+      tone: "danger",
     });
     if (!ok) return;
     const refundOk = await confirm({ title: "Refund stake?", description: "Credit the user's stake back?", confirmText: "Yes, refund", cancelText: "No, just delete" });
@@ -192,7 +192,7 @@ export function TicketTrackerPanel() {
               <div className="flex items-center gap-2 text-sm">
                 <User2 className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="font-medium">{bet.profiles?.full_name ?? "Unknown"}</span>
-                <span className="text-xs text-muted-foreground">{bet.profiles?.email}</span>
+                <span className="text-xs text-muted-foreground">{bet.profiles?.email ?? ''}</span>
               </div>
             </div>
             <StatusBadge status={bet.status} />
