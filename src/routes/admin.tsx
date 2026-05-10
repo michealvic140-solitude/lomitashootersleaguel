@@ -988,23 +988,60 @@ function TicketsPanel() {
   }
   const visible = tickets.filter((t) => filter === "all" || t.status === filter);
   return (
-    <div className="space-y-2">
-      {tickets.length === 0 && <p className="text-muted-foreground text-sm">No tickets.</p>}
-      {tickets.map((t) => (
-        <Card key={t.id} className="glass p-3 flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-0">
-            <div className="font-bold truncate">{t.subject}</div>
-            <div className="text-xs text-muted-foreground">{t.profiles?.full_name} · {new Date(t.created_at).toLocaleString()}</div>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]">
+      <Card className="glass-strong p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          <div className="font-bold">Open reports & support tickets</div>
+          <Badge variant="outline" className="ml-auto">{visible.length}/{tickets.length}</Badge>
+          <Button size="sm" variant="outline" onClick={load}><RefreshCw className="h-3.5 w-3.5 mr-1" />Refresh</Button>
+        </div>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>{["all", "open", "in_progress", "resolved", "closed"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+        </Select>
+        <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
+          {visible.length === 0 && <p className="text-muted-foreground text-sm">No reports in this view.</p>}
+          {visible.map((t) => (
+            <button key={t.id} onClick={() => setSelected(t)} className={`w-full rounded-xl border p-3 text-left transition ${selected?.id === t.id ? "border-primary/60 bg-primary/10" : "border-border/60 bg-background/30 hover:border-primary/40"}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold truncate">{t.subject}</div>
+                  <div className="text-xs text-muted-foreground">{t.profiles?.full_name} · {new Date(t.created_at).toLocaleString()}</div>
+                </div>
+                <Badge variant="outline" className="capitalize">{t.status}</Badge>
+              </div>
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card className="glass p-4 space-y-3 min-h-[420px]">
+        {!selected ? <p className="text-sm text-muted-foreground">Select a report to read messages and reply.</p> : <>
+          <div className="flex items-start justify-between gap-3">
+            <div><div className="font-bold">{selected.subject}</div><div className="text-xs text-muted-foreground">{selected.profiles?.full_name} · {selected.profiles?.email}</div></div>
+            <Select value={selected.status} onValueChange={(v) => setStatus(selected.id, v)}>
+              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>{["open", "in_progress", "resolved", "closed"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <Badge variant="outline" className="capitalize">{t.status}</Badge>
-          <Select value={t.status} onValueChange={(v) => setStatus(t.id, v)}>
-            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>{["open", "in_progress", "resolved", "closed"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-          </Select>
-          <Button size="sm" variant="outline" asChild><a href={`/ticket/${t.id}`}>Open</a></Button>
-          <Button size="sm" variant="destructive" onClick={() => del(t.id)}><Trash2 className="h-3 w-3" /></Button>
-        </Card>
-      ))}
+          <div className="max-h-[380px] space-y-2 overflow-y-auto rounded-xl border border-border/60 bg-background/30 p-3">
+            {messages.length === 0 && <p className="text-xs text-muted-foreground">No messages yet.</p>}
+            {messages.map((m) => (
+              <div key={m.id} className="rounded-lg border border-border/50 bg-card/60 p-2 text-sm">
+                <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground"><span>{m.is_ai ? "AI Assistant" : m.profiles?.full_name ?? "User"}</span><span>{new Date(m.created_at).toLocaleString()}</span></div>
+                {m.content && <div className="whitespace-pre-wrap">{m.content}</div>}
+                {m.image_url && <img src={m.image_url} alt="Ticket attachment" className="mt-2 max-h-48 rounded-md object-contain" />}
+              </div>
+            ))}
+          </div>
+          <Textarea placeholder="Reply to user…" value={reply} onChange={(e) => setReply(e.target.value)} rows={3} />
+          <div className="flex flex-wrap gap-2">
+            <Button className="btn-luxury" disabled={!reply.trim() || selected.status === "closed"} onClick={sendReply}><Send className="h-4 w-4 mr-1" />Reply</Button>
+            <Button size="sm" variant="outline" asChild><a href={`/ticket/${selected.id}`}>Open full view</a></Button>
+            <Button size="sm" variant="destructive" onClick={() => del(selected.id)}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>
+          </div>
+        </>}
+      </Card>
     </div>
   );
 }
