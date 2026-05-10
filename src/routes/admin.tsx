@@ -770,8 +770,9 @@ function PromoPanel() {
   }
   async function toggle(id: string, val: boolean) { await supabase.from("promo_codes").update({ is_active: val }).eq("id", id); load(); }
   async function reviewRequest(id: string, approve: boolean) {
-    const fn = approve ? "approve_promo_request" : "decline_promo_request";
-    const { error } = await supabase.rpc(fn, { _id: id, _note: approve ? "Approved by admin" : "Declined by admin" });
+    const { error } = approve
+      ? await supabase.rpc("approve_promo_request", { _id: id, _note: "Approved by admin" })
+      : await supabase.rpc("decline_promo_request", { _id: id, _note: "Declined by admin" });
     if (error) toast.error(error.message); else { toast.success(approve ? "Request approved" : "Request declined"); load(); }
   }
 
