@@ -137,17 +137,19 @@ function BetSlipDrawer({ open, onClose }: { open: boolean; onClose: () => void }
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && closeAll()}>
-      <SheetContent side="right" className="w-full sm:max-w-md backdrop-blur-2xl bg-card/80 border-l-primary/30">
-        <SheetHeader>
+      <SheetContent side="right" className="flex h-dvh max-h-dvh w-full flex-col overflow-hidden p-0 sm:max-w-md backdrop-blur-2xl bg-card/80 border-l-primary/30">
+        <SheetHeader className="shrink-0 px-4 pb-2 pt-5 sm:px-6">
           <SheetTitle className="flex items-center gap-2">
             {placed ? <><CheckCircle2 className="h-5 w-5 text-emerald-400" />Ticket Placed</> : <><Ticket className="h-5 w-5 text-primary" />Bet Slip</>}
           </SheetTitle>
         </SheetHeader>
 
         {placed ? (
-          <PlacedPreview bet={placed} onView={() => { closeAll(); nav({ to: "/ticket/$id", params: { id: placed.id } }); }} onClose={closeAll} />
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-6">
+            <PlacedPreview bet={placed} onView={() => { closeAll(); nav({ to: "/ticket/$id", params: { id: placed.id } }); }} onClose={closeAll} />
+          </div>
         ) : (
-        <>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 sm:px-6">
         <div className="mt-4 rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 p-3">
           <label className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1">
             <Sparkles className="h-3 w-3" /> Load a booking code
@@ -165,7 +167,7 @@ function BetSlipDrawer({ open, onClose }: { open: boolean; onClose: () => void }
             </Button>
           </div>
         </div>
-        <div className="mt-4 space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+        <div className="mt-4 space-y-3 max-h-[38svh] overflow-y-auto pr-1 sm:max-h-[55vh]">
           {selections.length === 0 && <p className="text-sm text-muted-foreground">No selections yet. Tap odds on a match to add.</p>}
           {selections.map((s, i) => (
             <Card key={s.odd_id} className="glass p-3 text-sm">
@@ -213,7 +215,7 @@ function BetSlipDrawer({ open, onClose }: { open: boolean; onClose: () => void }
             <p className="text-[10px] text-muted-foreground text-center">Tokens are deducted on placement. Cash-out available only after the match ends and your bet wins.</p>
           </div>
         )}
-        </>
+        </div>
         )}
       </SheetContent>
     </Sheet>

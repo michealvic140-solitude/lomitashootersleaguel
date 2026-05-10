@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import {
   Shield, Users, Trophy, Coins, Megaphone, Settings as SettingsIcon, Ticket, AlertTriangle,
-  Calendar, Tag, Image as ImageIcon, BarChart3, History, Send, Plus, Trash2, Pencil, ChevronRight, ChevronLeft, Wallet, ListOrdered, Radio,
+  Calendar, Tag, Image as ImageIcon, BarChart3, History, Send, Plus, Trash2, Pencil, ChevronRight, ChevronLeft, Wallet, ListOrdered, Radio, RefreshCw, MessageSquare,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABELS, type AppRole } from "@/contexts/AuthContext";
@@ -29,13 +29,21 @@ export const Route = createFileRoute("/admin")({
 function AdminPage() {
   const { isAdmin, loading } = useAuth();
   const nav = useNavigate();
+  const [openReports, setOpenReports] = useState(0);
   useEffect(() => { if (!loading && !isAdmin) nav({ to: "/" }); }, [isAdmin, loading, nav]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    const loadReports = () => supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open").then(({ count }) => setOpenReports(count ?? 0));
+    loadReports();
+    const ch = supabase.channel("admin-open-report-count").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, loadReports).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isAdmin]);
   if (loading) return <Layout><div className="container py-10">Loading…</div></Layout>;
   if (!isAdmin) return null;
 
   return (
     <Layout>
-      <div className="container py-8 space-y-6">
+      <div className="container w-full py-5 sm:py-8 space-y-5 sm:space-y-6 overflow-x-hidden">
         <div className="flex items-center gap-2 flex-wrap">
           <Shield className="h-6 w-6 text-accent" />
           <h1 className="text-3xl font-bold gradient-emerald-text">Admin Console</h1>
@@ -43,8 +51,8 @@ function AdminPage() {
         </div>
 
         <Stats />
-        <Tabs defaultValue="users">
-          <TabsList className="flex flex-wrap h-auto justify-start">
+        <Tabs defaultValue="users" className="w-full">
+          <TabsList className="grid h-auto w-full grid-cols-2 justify-start gap-1 overflow-visible rounded-xl bg-card/70 p-1 sm:grid-cols-3 lg:flex lg:flex-wrap">
             <TabsTrigger value="users"><Users className="h-3 w-3 mr-1" />Users</TabsTrigger>
             <TabsTrigger value="matches"><Trophy className="h-3 w-3 mr-1" />Matches</TabsTrigger>
             <TabsTrigger value="events"><Calendar className="h-3 w-3 mr-1" />Events</TabsTrigger>
@@ -53,7 +61,7 @@ function AdminPage() {
             <TabsTrigger value="leaderboard"><ListOrdered className="h-3 w-3 mr-1" />Leaderboard</TabsTrigger>
             <TabsTrigger value="promos"><Tag className="h-3 w-3 mr-1" />Promo Codes</TabsTrigger>
             <TabsTrigger value="content"><Megaphone className="h-3 w-3 mr-1" />Content</TabsTrigger>
-            <TabsTrigger value="tickets"><Ticket className="h-3 w-3 mr-1" />Tickets</TabsTrigger>
+            <TabsTrigger value="tickets" className="relative"><Ticket className="h-3 w-3 mr-1" />Reports{openReports > 0 && <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">{openReports}</Badge>}</TabsTrigger>
             <TabsTrigger value="tracker"><Radio className="h-3 w-3 mr-1" />Tracker</TabsTrigger>
             <TabsTrigger value="appeals"><AlertTriangle className="h-3 w-3 mr-1" />Appeals</TabsTrigger>
             <TabsTrigger value="notify"><Send className="h-3 w-3 mr-1" />Notify</TabsTrigger>
@@ -162,7 +170,7 @@ function UsersPanel() {
           <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
-            {(["viewer", "shooter", "gang_leader", "registered", "moderator", "admin"] as AppRole[]).map((r) => (
+            {(["viewer", "shooter", "gang_leader", "registered", "sponsor", "moderator", "admin"] as AppRole[]).map((r) => (
               <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
             ))}
           </SelectContent>
@@ -722,11 +730,32 @@ function TokensPanel() {
 /* ============================ PROMO CODES ============================ */
 function PromoPanel() {
   const [codes, setCodes] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, any>>({});
+  const [redemptions, setRedemptions] = useState<Record<string, any[]>>({});
   const [draft, setDraft] = useState({ code: "", amount: 100, usage_limit: 1, expires_at: "" });
 
   async function load() {
-    const { data } = await supabase.from("promo_codes").select("*").order("created_at", { ascending: false });
-    setCodes(data ?? []);
+    const [{ data: codeRows }, { data: requestRows }] = await Promise.all([
+      supabase.from("promo_codes").select("*").order("created_at", { ascending: false }),
+      supabase.from("promo_code_requests").select("*").order("created_at", { ascending: false }),
+    ]);
+    setCodes(codeRows ?? []); setRequests(requestRows ?? []);
+    const ids = Array.from(new Set([...(requestRows ?? []).map((r: any) => r.user_id), ...(codeRows ?? []).map((c: any) => c.created_by).filter(Boolean)]));
+    if (ids.length) {
+      const { data: p } = await supabase.from("profiles").select("id,full_name,email").in("id", ids);
+      const m: Record<string, any> = {}; (p ?? []).forEach((x: any) => { m[x.id] = x; }); setProfiles(m);
+    }
+    const promoIds = (codeRows ?? []).map((c: any) => c.id);
+    if (promoIds.length) {
+      const { data: reds } = await supabase.from("promo_redemptions").select("*").in("promo_id", promoIds).order("created_at", { ascending: false });
+      const users = Array.from(new Set((reds ?? []).map((r: any) => r.user_id)));
+      const { data: userRows } = users.length ? await supabase.from("profiles").select("id,full_name,email").in("id", users) : { data: [] as any[] };
+      const userMap = new Map((userRows ?? []).map((u: any) => [u.id, u]));
+      const byPromo: Record<string, any[]> = {};
+      (reds ?? []).forEach((r: any) => { (byPromo[r.promo_id] ??= []).push({ ...r, profile: userMap.get(r.user_id) }); });
+      setRedemptions(byPromo);
+    }
   }
   useEffect(() => { load(); }, []);
 
@@ -740,9 +769,26 @@ function PromoPanel() {
     else { setDraft({ code: "", amount: 100, usage_limit: 1, expires_at: "" }); load(); toast.success("Promo created"); logAudit("promo_created", "promo"); }
   }
   async function toggle(id: string, val: boolean) { await supabase.from("promo_codes").update({ is_active: val }).eq("id", id); load(); }
+  async function reviewRequest(id: string, approve: boolean) {
+    const { error } = approve
+      ? await supabase.rpc("approve_promo_request", { _id: id, _note: "Approved by admin" })
+      : await supabase.rpc("decline_promo_request", { _id: id, _note: "Declined by admin" });
+    if (error) toast.error(error.message); else { toast.success(approve ? "Request approved" : "Request declined"); load(); }
+  }
 
   return (
     <div className="space-y-3">
+      <Card className="glass-strong p-4 space-y-3 border-accent/30">
+        <div className="flex items-center justify-between gap-2 flex-wrap"><div className="font-bold">Sponsor promo requests</div><Badge variant="outline">{requests.filter((r) => r.status === "pending").length} pending</Badge></div>
+        {requests.length === 0 && <p className="text-sm text-muted-foreground">No sponsor requests yet.</p>}
+        {requests.map((r) => (
+          <div key={r.id} className="rounded-xl border border-border/60 bg-background/30 p-3 flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0 flex-1"><div className="font-bold">{Number(r.amount).toLocaleString()} tokens · {r.usage_limit} use(s)</div><div className="text-xs text-muted-foreground">{profiles[r.user_id]?.full_name ?? "Sponsor"} · {new Date(r.created_at).toLocaleString()}</div>{r.reason && <div className="text-xs mt-1 whitespace-pre-wrap">{r.reason}</div>}{r.generated_code && <div className="text-xs font-mono text-primary mt-1">Generated: {r.generated_code}</div>}</div>
+            <Badge variant="outline" className="capitalize">{r.status}</Badge>
+            {r.status === "pending" && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => reviewRequest(r.id, false)}>Decline</Button><Button size="sm" className="btn-luxury" onClick={() => reviewRequest(r.id, true)}>Approve</Button></div>}
+          </div>
+        ))}
+      </Card>
       <Card className="glass-strong p-4 space-y-2">
         <div className="font-bold">Generate promo code</div>
         <div className="grid md:grid-cols-4 gap-2">
@@ -755,15 +801,18 @@ function PromoPanel() {
       </Card>
       <div className="space-y-2">
         {codes.map((c) => (
-          <Card key={c.id} className="glass p-3 flex items-center justify-between gap-3 flex-wrap">
+          <Card key={c.id} className="glass p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <div className="font-mono font-bold">{c.code}</div>
-              <div className="text-xs text-muted-foreground">{c.amount} tokens · used {c.used_count}/{c.usage_limit ?? "∞"} · {c.expires_at ? `expires ${new Date(c.expires_at).toLocaleDateString()}` : "no expiry"}</div>
+              <div className="text-xs text-muted-foreground">{c.amount} tokens · used {c.used_count}/{c.usage_limit ?? "∞"} · created by {profiles[c.created_by]?.full_name ?? "Admin"} · {c.expires_at ? `expires ${new Date(c.expires_at).toLocaleDateString()}` : "no expiry"}</div>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={c.is_active} onCheckedChange={(v) => toggle(c.id, v)} />
               <Badge variant="outline">{c.is_active ? "Active" : "Off"}</Badge>
             </div>
+            </div>
+            {(redemptions[c.id] ?? []).length > 0 && <div className="rounded-lg border border-border/50 bg-background/30 p-2 text-xs"><div className="font-semibold mb-1">Used by</div>{redemptions[c.id].map((r) => <div key={r.id} className="flex justify-between gap-2 border-b border-border/30 py-1 last:border-0"><span>{r.profile?.full_name ?? "Unknown user"}</span><span className="text-muted-foreground">{new Date(r.created_at).toLocaleString()}</span></div>)}</div>}
           </Card>
         ))}
       </div>
@@ -939,6 +988,10 @@ function CategoriesPanel() {
 /* ============================ TICKETS ============================ */
 function TicketsPanel() {
   const [tickets, setTickets] = useState<any[]>([]);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [reply, setReply] = useState("");
+  const [filter, setFilter] = useState("open");
   const confirm = useConfirm();
   async function load() {
     const { data } = await supabase.from("support_tickets").select("*, profiles:user_id(full_name,email)").order("created_at", { ascending: false }).limit(200);
@@ -949,33 +1002,87 @@ function TicketsPanel() {
     const ch = supabase.channel("admin-tk").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, load).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
+  useEffect(() => {
+    if (!selected) return;
+    const loadMessages = () => supabase.from("ticket_messages").select("*, profiles:user_id(full_name)").eq("ticket_id", selected.id).order("created_at", { ascending: true }).then(({ data }) => setMessages(data ?? []));
+    loadMessages();
+    const ch = supabase.channel(`admin-ticket-${selected.id}`).on("postgres_changes", { event: "*", schema: "public", table: "ticket_messages", filter: `ticket_id=eq.${selected.id}` }, loadMessages).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [selected?.id]);
   async function setStatus(id: string, status: string) {
     await supabase.from("support_tickets").update({ status: status as any }).eq("id", id);
     setTickets((t) => t.map((x) => x.id === id ? { ...x, status } : x));
+    setSelected((x: any) => x?.id === id ? { ...x, status } : x);
+  }
+  async function sendReply() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!selected || !userData.user || !reply.trim()) return;
+    const { error } = await supabase.from("ticket_messages").insert({ ticket_id: selected.id, user_id: userData.user.id, content: reply.trim() });
+    if (error) toast.error(error.message); else { setReply(""); await setStatus(selected.id, "in_progress"); toast.success("Reply sent"); }
   }
   async function del(id: string) {
     if (!await confirm({ title: "Delete ticket?", tone: "danger", confirmText: "Delete" })) return;
+    await supabase.from("ticket_messages").delete().eq("ticket_id", id);
     await supabase.from("support_tickets").delete().eq("id", id);
     setTickets((t) => t.filter((x) => x.id !== id));
+    if (selected?.id === id) setSelected(null);
   }
+  const visible = tickets.filter((t) => filter === "all" || t.status === filter);
   return (
-    <div className="space-y-2">
-      {tickets.length === 0 && <p className="text-muted-foreground text-sm">No tickets.</p>}
-      {tickets.map((t) => (
-        <Card key={t.id} className="glass p-3 flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-0">
-            <div className="font-bold truncate">{t.subject}</div>
-            <div className="text-xs text-muted-foreground">{t.profiles?.full_name} · {new Date(t.created_at).toLocaleString()}</div>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]">
+      <Card className="glass-strong p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          <div className="font-bold">Open reports & support tickets</div>
+          <Badge variant="outline" className="ml-auto">{visible.length}/{tickets.length}</Badge>
+          <Button size="sm" variant="outline" onClick={load}><RefreshCw className="h-3.5 w-3.5 mr-1" />Refresh</Button>
+        </div>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>{["all", "open", "in_progress", "resolved", "closed"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+        </Select>
+        <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
+          {visible.length === 0 && <p className="text-muted-foreground text-sm">No reports in this view.</p>}
+          {visible.map((t) => (
+            <button key={t.id} onClick={() => setSelected(t)} className={`w-full rounded-xl border p-3 text-left transition ${selected?.id === t.id ? "border-primary/60 bg-primary/10" : "border-border/60 bg-background/30 hover:border-primary/40"}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold truncate">{t.subject}</div>
+                  <div className="text-xs text-muted-foreground">{t.profiles?.full_name} · {new Date(t.created_at).toLocaleString()}</div>
+                </div>
+                <Badge variant="outline" className="capitalize">{t.status}</Badge>
+              </div>
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card className="glass p-4 space-y-3 min-h-[420px]">
+        {!selected ? <p className="text-sm text-muted-foreground">Select a report to read messages and reply.</p> : <>
+          <div className="flex items-start justify-between gap-3">
+            <div><div className="font-bold">{selected.subject}</div><div className="text-xs text-muted-foreground">{selected.profiles?.full_name} · {selected.profiles?.email}</div></div>
+            <Select value={selected.status} onValueChange={(v) => setStatus(selected.id, v)}>
+              <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>{["open", "in_progress", "resolved", "closed"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <Badge variant="outline" className="capitalize">{t.status}</Badge>
-          <Select value={t.status} onValueChange={(v) => setStatus(t.id, v)}>
-            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>{["open", "in_progress", "resolved", "closed"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-          </Select>
-          <Button size="sm" variant="outline" asChild><a href={`/ticket/${t.id}`}>Open</a></Button>
-          <Button size="sm" variant="destructive" onClick={() => del(t.id)}><Trash2 className="h-3 w-3" /></Button>
-        </Card>
-      ))}
+          <div className="max-h-[380px] space-y-2 overflow-y-auto rounded-xl border border-border/60 bg-background/30 p-3">
+            {messages.length === 0 && <p className="text-xs text-muted-foreground">No messages yet.</p>}
+            {messages.map((m) => (
+              <div key={m.id} className="rounded-lg border border-border/50 bg-card/60 p-2 text-sm">
+                <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground"><span>{m.is_ai ? "AI Assistant" : m.profiles?.full_name ?? "User"}</span><span>{new Date(m.created_at).toLocaleString()}</span></div>
+                {m.content && <div className="whitespace-pre-wrap">{m.content}</div>}
+                {m.image_url && <img src={m.image_url} alt="Ticket attachment" className="mt-2 max-h-48 rounded-md object-contain" />}
+              </div>
+            ))}
+          </div>
+          <Textarea placeholder="Reply to user…" value={reply} onChange={(e) => setReply(e.target.value)} rows={3} />
+          <div className="flex flex-wrap gap-2">
+            <Button className="btn-luxury" disabled={!reply.trim() || selected.status === "closed"} onClick={sendReply}><Send className="h-4 w-4 mr-1" />Reply</Button>
+            <Button size="sm" variant="outline" asChild><a href={`/ticket/${selected.id}`}>Open full view</a></Button>
+            <Button size="sm" variant="destructive" onClick={() => del(selected.id)}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>
+          </div>
+        </>}
+      </Card>
     </div>
   );
 }

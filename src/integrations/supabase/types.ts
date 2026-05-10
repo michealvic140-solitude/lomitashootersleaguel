@@ -255,6 +255,7 @@ export type Database = {
       }
       bets: {
         Row: {
+          bet_tracker: string | null
           booking_code: string
           cashed_out_at: string | null
           cashout_amount: number | null
@@ -269,6 +270,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bet_tracker?: string | null
           booking_code?: string
           cashed_out_at?: string | null
           cashout_amount?: number | null
@@ -283,6 +285,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bet_tracker?: string | null
           booking_code?: string
           cashed_out_at?: string | null
           cashout_amount?: number | null

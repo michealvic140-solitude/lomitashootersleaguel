@@ -57,8 +57,8 @@ export function HighlightsRow() {
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious />
-        <CarouselNext />
+        <CarouselPrevious className="left-2 border-primary/30 bg-card/80" />
+        <CarouselNext className="right-2 border-primary/30 bg-card/80" />
       </Carousel>
     </section>
   );

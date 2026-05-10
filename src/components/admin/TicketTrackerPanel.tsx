@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { Search, Ban, Pause, Play, RotateCcw, Trash2, Hash, User2, Coins, TrendingUp, Loader2, Radio } from "lucide-react";
+import { Search, Ban, Pause, Play, RotateCcw, Trash2, Hash, User2, Coins, TrendingUp, Loader2, Radio, RefreshCw, ListChecks } from "lucide-react";
 
 type Selection = {
   id: string;
@@ -21,6 +21,7 @@ type Bet = {
   id: string;
   user_id: string;
   tracking_id: string;
+  bet_tracker?: string | null;
   booking_code: string;
   stake: number;
   total_odds: number;
@@ -31,6 +32,8 @@ type Bet = {
   bet_selections: Selection[];
   profiles?: { full_name: string | null; email: string | null } | null;
 };
+
+const BET_SELECT = "id,user_id,tracking_id,bet_tracker,booking_code,stake,total_odds,potential_payout,status,created_at,settled_at, bet_selections(id,selection_label,locked_odds,result,match_id, markets:market_id(name), matches:match_id(name,status,home_score,away_score))";
 
 const fmt = (n: number) => new Intl.NumberFormat().format(n);
 
@@ -52,19 +55,24 @@ export function TicketTrackerPanel() {
   const [bet, setBet] = useState<Bet | null>(null);
   const [recent, setRecent] = useState<Bet[]>([]);
   const [reason, setReason] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [feedSearch, setFeedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   async function loadRecent() {
+    setRefreshing(true);
     const { data } = await supabase
       .from("bets")
-      .select("id,user_id,tracking_id,booking_code,stake,total_odds,potential_payout,status,created_at,settled_at, bet_selections(id,selection_label,locked_odds,result,match_id)")
+      .select(BET_SELECT)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(500);
     if (data) {
       const userIds = [...new Set(data.map((b: any) => b.user_id))];
       const { data: profs } = await supabase.from("profiles").select("id,full_name,email").in("id", userIds);
       const map = new Map((profs ?? []).map((p: any) => [p.id, p]));
       setRecent(data.map((b: any) => ({ ...b, profiles: map.get(b.user_id) ?? null })));
     }
+    setRefreshing(false);
   }
 
   useEffect(() => {
@@ -72,9 +80,20 @@ export function TicketTrackerPanel() {
     const ch = supabase
       .channel("admin-tracker-bets")
       .on("postgres_changes", { event: "*", schema: "public", table: "bets" }, () => loadRecent())
+      .on("postgres_changes", { event: "*", schema: "public", table: "bet_selections" }, () => { loadRecent(); if (bet) refresh(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, []);
+  }, [bet?.id]);
+
+  const filteredRecent = useMemo(() => {
+    const q = feedSearch.trim().toLowerCase();
+    return recent.filter((b) => {
+      const statusOk = statusFilter === "all" || b.status === statusFilter;
+      const textOk = !q || [b.tracking_id, b.bet_tracker, b.booking_code, b.profiles?.full_name, b.profiles?.email]
+        .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+      return statusOk && textOk;
+    });
+  }, [recent, feedSearch, statusFilter]);
 
   async function lookup(idOrCode?: string) {
     const term = (idOrCode ?? query).trim();
@@ -84,8 +103,8 @@ export function TicketTrackerPanel() {
     try {
       const { data, error } = await supabase
         .from("bets")
-        .select("id,user_id,tracking_id,booking_code,stake,total_odds,potential_payout,status,created_at,settled_at, bet_selections(id,selection_label,locked_odds,result,match_id)")
-        .or(`tracking_id.eq.${term},booking_code.eq.${term},id.eq.${term.replace(/[^0-9a-f-]/gi, "") || "00000000-0000-0000-0000-000000000000"}`)
+        .select(BET_SELECT)
+        .or(`tracking_id.eq.${term},bet_tracker.eq.${term},booking_code.eq.${term},id.eq.${term.replace(/[^0-9a-f-]/gi, "") || "00000000-0000-0000-0000-000000000000"}`)
         .maybeSingle();
       if (error || !data) { toast.error("Ticket not found"); return; }
       const { data: prof } = await supabase.from("profiles").select("full_name,email").eq("id", data.user_id).maybeSingle();
@@ -95,7 +114,7 @@ export function TicketTrackerPanel() {
     }
   }
 
-  async function refresh() { if (bet) await lookup(bet.tracking_id); }
+  async function refresh() { await loadRecent(); if (bet) await lookup(bet.bet_tracker || bet.tracking_id); }
 
   async function voidSelection(sel: Selection) {
     const ok = await confirm({
@@ -159,10 +178,13 @@ export function TicketTrackerPanel() {
   return (
     <div className="space-y-4">
       <Card className="p-4 space-y-3 bg-gradient-to-br from-card to-card/60 border-accent/20">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Radio className="h-4 w-4 text-accent" />
           <h3 className="font-semibold">Ticket Tracker</h3>
-          <Badge variant="outline" className="ml-auto text-[10px]">Live</Badge>
+          <Badge variant="outline" className="text-[10px]">Live</Badge>
+          <Button size="sm" variant="outline" className="ml-auto" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? "animate-spin" : ""}`} />Refresh
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground">Paste a tracking ID (e.g. <code>LSL-XXXXXXXXXX</code>), booking code, or bet UUID.</p>
         <div className="flex gap-2">
@@ -183,9 +205,10 @@ export function TicketTrackerPanel() {
         <Card className="p-5 space-y-4 bg-gradient-to-br from-card via-card to-accent/5 border-accent/30">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Hash className="h-3 w-3" />
                 <span className="font-mono">{bet.tracking_id}</span>
+                <span className="font-mono">Tracker: {bet.bet_tracker || bet.tracking_id}</span>
                 <span className="opacity-50">·</span>
                 <span className="font-mono">{bet.booking_code}</span>
               </div>
@@ -215,11 +238,14 @@ export function TicketTrackerPanel() {
 
           <div className="space-y-1.5">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selections</div>
-            {bet.bet_selections.map((s) => (
+            {bet.bet_selections.map((s: any) => (
               <div key={s.id} className="flex items-center justify-between gap-2 rounded-md border border-border/40 bg-background/30 px-3 py-2 text-sm">
                 <div className="min-w-0 flex-1">
                   <div className="truncate">{s.selection_label}</div>
                   <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                    <span className="truncate">{s.matches?.name ?? "Match"}</span>
+                    <span>·</span>
+                    <span>{s.markets?.name ?? "Market"}</span>
                     <span>@ {Number(s.locked_odds).toFixed(2)}</span>
                     {s.result && <Badge variant="outline" className="text-[9px] py-0">{s.result}</Badge>}
                   </div>
@@ -253,25 +279,34 @@ export function TicketTrackerPanel() {
         </Card>
       )}
 
-      <Card className="p-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm">Live feed</h3>
-          <Badge variant="outline" className="text-[10px]">Last 20</Badge>
+      <Card className="p-4 space-y-3 bg-gradient-to-br from-card to-card/60 border-primary/20">
+        <div className="flex flex-wrap items-center gap-2">
+          <ListChecks className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-sm">All booked tickets</h3>
+          <Badge variant="outline" className="text-[10px]">{filteredRecent.length}/{recent.length}</Badge>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
+          <Input value={feedSearch} onChange={(e) => setFeedSearch(e.target.value)} placeholder="Search tracker, code, user…" className="h-9" />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="all">All status</option>
+            {['open','suspended','won','lost','cashed_out'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
         <div className="space-y-1.5 max-h-[420px] overflow-auto">
-          {recent.map((b) => (
+          {filteredRecent.map((b) => (
             <button
               key={b.id}
-              onClick={() => { setQuery(b.tracking_id); lookup(b.tracking_id); }}
-              className="w-full text-left flex items-center gap-2 rounded-md border border-border/40 bg-background/30 px-3 py-2 text-xs hover:bg-accent/5 transition"
+              onClick={() => { setQuery(b.bet_tracker || b.tracking_id); lookup(b.bet_tracker || b.tracking_id); }}
+              className="w-full text-left grid grid-cols-[1fr_auto] gap-2 rounded-md border border-border/40 bg-background/30 px-3 py-2 text-xs hover:bg-accent/5 transition sm:grid-cols-[130px_1fr_90px_90px_auto]"
             >
-              <span className="font-mono text-[10px] text-muted-foreground">{b.tracking_id}</span>
-              <span className="truncate flex-1">{b.profiles?.full_name ?? "—"}</span>
-              <span className="font-semibold">{fmt(b.stake)}</span>
+              <span className="font-mono text-[10px] text-muted-foreground truncate">{b.bet_tracker || b.tracking_id}</span>
+              <span className="truncate">{b.profiles?.full_name ?? "—"}</span>
+              <span className="font-semibold hidden sm:inline">{fmt(b.stake)}</span>
+              <span className="hidden sm:inline">{b.bet_selections?.length ?? 0} orders</span>
               <StatusBadge status={b.status} />
             </button>
           ))}
-          {recent.length === 0 && <p className="text-xs text-muted-foreground">No bets yet.</p>}
+          {filteredRecent.length === 0 && <p className="text-xs text-muted-foreground">No tickets found. Use Refresh after a user books a bet.</p>}
         </div>
       </Card>
     </div>
