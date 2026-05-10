@@ -947,6 +947,10 @@ function CategoriesPanel() {
 /* ============================ TICKETS ============================ */
 function TicketsPanel() {
   const [tickets, setTickets] = useState<any[]>([]);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [reply, setReply] = useState("");
+  const [filter, setFilter] = useState("open");
   const confirm = useConfirm();
   async function load() {
     const { data } = await supabase.from("support_tickets").select("*, profiles:user_id(full_name,email)").order("created_at", { ascending: false }).limit(200);
@@ -957,15 +961,32 @@ function TicketsPanel() {
     const ch = supabase.channel("admin-tk").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, load).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
+  useEffect(() => {
+    if (!selected) return;
+    const loadMessages = () => supabase.from("ticket_messages").select("*, profiles:user_id(full_name)").eq("ticket_id", selected.id).order("created_at", { ascending: true }).then(({ data }) => setMessages(data ?? []));
+    loadMessages();
+    const ch = supabase.channel(`admin-ticket-${selected.id}`).on("postgres_changes", { event: "*", schema: "public", table: "ticket_messages", filter: `ticket_id=eq.${selected.id}` }, loadMessages).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [selected?.id]);
   async function setStatus(id: string, status: string) {
     await supabase.from("support_tickets").update({ status: status as any }).eq("id", id);
     setTickets((t) => t.map((x) => x.id === id ? { ...x, status } : x));
+    setSelected((x: any) => x?.id === id ? { ...x, status } : x);
+  }
+  async function sendReply() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!selected || !userData.user || !reply.trim()) return;
+    const { error } = await supabase.from("ticket_messages").insert({ ticket_id: selected.id, user_id: userData.user.id, content: reply.trim() });
+    if (error) toast.error(error.message); else { setReply(""); await setStatus(selected.id, "in_progress"); toast.success("Reply sent"); }
   }
   async function del(id: string) {
     if (!await confirm({ title: "Delete ticket?", tone: "danger", confirmText: "Delete" })) return;
+    await supabase.from("ticket_messages").delete().eq("ticket_id", id);
     await supabase.from("support_tickets").delete().eq("id", id);
     setTickets((t) => t.filter((x) => x.id !== id));
+    if (selected?.id === id) setSelected(null);
   }
+  const visible = tickets.filter((t) => filter === "all" || t.status === filter);
   return (
     <div className="space-y-2">
       {tickets.length === 0 && <p className="text-muted-foreground text-sm">No tickets.</p>}
