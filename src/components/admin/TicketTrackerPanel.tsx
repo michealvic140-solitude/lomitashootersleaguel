@@ -103,8 +103,8 @@ export function TicketTrackerPanel() {
     try {
       const { data, error } = await supabase
         .from("bets")
-        .select("id,user_id,tracking_id,booking_code,stake,total_odds,potential_payout,status,created_at,settled_at, bet_selections(id,selection_label,locked_odds,result,match_id)")
-        .or(`tracking_id.eq.${term},booking_code.eq.${term},id.eq.${term.replace(/[^0-9a-f-]/gi, "") || "00000000-0000-0000-0000-000000000000"}`)
+        .select(BET_SELECT)
+        .or(`tracking_id.eq.${term},bet_tracker.eq.${term},booking_code.eq.${term},id.eq.${term.replace(/[^0-9a-f-]/gi, "") || "00000000-0000-0000-0000-000000000000"}`)
         .maybeSingle();
       if (error || !data) { toast.error("Ticket not found"); return; }
       const { data: prof } = await supabase.from("profiles").select("full_name,email").eq("id", data.user_id).maybeSingle();
@@ -114,7 +114,7 @@ export function TicketTrackerPanel() {
     }
   }
 
-  async function refresh() { if (bet) await lookup(bet.tracking_id); }
+  async function refresh() { await loadRecent(); if (bet) await lookup(bet.bet_tracker || bet.tracking_id); }
 
   async function voidSelection(sel: Selection) {
     const ok = await confirm({
