@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { Search, Ban, Pause, Play, RotateCcw, Trash2, Hash, User2, Coins, TrendingUp, Loader2, Radio } from "lucide-react";
+import { Search, Ban, Pause, Play, RotateCcw, Trash2, Hash, User2, Coins, TrendingUp, Loader2, Radio, RefreshCw, ListChecks } from "lucide-react";
 
 type Selection = {
   id: string;
@@ -21,6 +21,7 @@ type Bet = {
   id: string;
   user_id: string;
   tracking_id: string;
+  bet_tracker?: string | null;
   booking_code: string;
   stake: number;
   total_odds: number;
@@ -31,6 +32,8 @@ type Bet = {
   bet_selections: Selection[];
   profiles?: { full_name: string | null; email: string | null } | null;
 };
+
+const BET_SELECT = "id,user_id,tracking_id,bet_tracker,booking_code,stake,total_odds,potential_payout,status,created_at,settled_at, bet_selections(id,selection_label,locked_odds,result,match_id, markets:market_id(name), matches:match_id(name,status,home_score,away_score))";
 
 const fmt = (n: number) => new Intl.NumberFormat().format(n);
 
@@ -52,19 +55,24 @@ export function TicketTrackerPanel() {
   const [bet, setBet] = useState<Bet | null>(null);
   const [recent, setRecent] = useState<Bet[]>([]);
   const [reason, setReason] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [feedSearch, setFeedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   async function loadRecent() {
+    setRefreshing(true);
     const { data } = await supabase
       .from("bets")
-      .select("id,user_id,tracking_id,booking_code,stake,total_odds,potential_payout,status,created_at,settled_at, bet_selections(id,selection_label,locked_odds,result,match_id)")
+      .select(BET_SELECT)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(500);
     if (data) {
       const userIds = [...new Set(data.map((b: any) => b.user_id))];
       const { data: profs } = await supabase.from("profiles").select("id,full_name,email").in("id", userIds);
       const map = new Map((profs ?? []).map((p: any) => [p.id, p]));
       setRecent(data.map((b: any) => ({ ...b, profiles: map.get(b.user_id) ?? null })));
     }
+    setRefreshing(false);
   }
 
   useEffect(() => {
@@ -72,9 +80,20 @@ export function TicketTrackerPanel() {
     const ch = supabase
       .channel("admin-tracker-bets")
       .on("postgres_changes", { event: "*", schema: "public", table: "bets" }, () => loadRecent())
+      .on("postgres_changes", { event: "*", schema: "public", table: "bet_selections" }, () => { loadRecent(); if (bet) refresh(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, []);
+  }, [bet?.id]);
+
+  const filteredRecent = useMemo(() => {
+    const q = feedSearch.trim().toLowerCase();
+    return recent.filter((b) => {
+      const statusOk = statusFilter === "all" || b.status === statusFilter;
+      const textOk = !q || [b.tracking_id, b.bet_tracker, b.booking_code, b.profiles?.full_name, b.profiles?.email]
+        .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+      return statusOk && textOk;
+    });
+  }, [recent, feedSearch, statusFilter]);
 
   async function lookup(idOrCode?: string) {
     const term = (idOrCode ?? query).trim();
