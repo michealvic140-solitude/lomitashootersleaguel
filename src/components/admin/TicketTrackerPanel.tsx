@@ -178,10 +178,13 @@ export function TicketTrackerPanel() {
   return (
     <div className="space-y-4">
       <Card className="p-4 space-y-3 bg-gradient-to-br from-card to-card/60 border-accent/20">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Radio className="h-4 w-4 text-accent" />
           <h3 className="font-semibold">Ticket Tracker</h3>
-          <Badge variant="outline" className="ml-auto text-[10px]">Live</Badge>
+          <Badge variant="outline" className="text-[10px]">Live</Badge>
+          <Button size="sm" variant="outline" className="ml-auto" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? "animate-spin" : ""}`} />Refresh
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground">Paste a tracking ID (e.g. <code>LSL-XXXXXXXXXX</code>), booking code, or bet UUID.</p>
         <div className="flex gap-2">
@@ -202,9 +205,10 @@ export function TicketTrackerPanel() {
         <Card className="p-5 space-y-4 bg-gradient-to-br from-card via-card to-accent/5 border-accent/30">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Hash className="h-3 w-3" />
                 <span className="font-mono">{bet.tracking_id}</span>
+                <span className="font-mono">Tracker: {bet.bet_tracker || bet.tracking_id}</span>
                 <span className="opacity-50">·</span>
                 <span className="font-mono">{bet.booking_code}</span>
               </div>
@@ -234,11 +238,14 @@ export function TicketTrackerPanel() {
 
           <div className="space-y-1.5">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selections</div>
-            {bet.bet_selections.map((s) => (
+            {bet.bet_selections.map((s: any) => (
               <div key={s.id} className="flex items-center justify-between gap-2 rounded-md border border-border/40 bg-background/30 px-3 py-2 text-sm">
                 <div className="min-w-0 flex-1">
                   <div className="truncate">{s.selection_label}</div>
                   <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                    <span className="truncate">{s.matches?.name ?? "Match"}</span>
+                    <span>·</span>
+                    <span>{s.markets?.name ?? "Market"}</span>
                     <span>@ {Number(s.locked_odds).toFixed(2)}</span>
                     {s.result && <Badge variant="outline" className="text-[9px] py-0">{s.result}</Badge>}
                   </div>
