@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import {
   Shield, Users, Trophy, Coins, Megaphone, Settings as SettingsIcon, Ticket, AlertTriangle,
-  Calendar, Tag, Image as ImageIcon, BarChart3, History, Send, Plus, Trash2, Pencil, ChevronRight, ChevronLeft, Wallet, ListOrdered, Radio,
+  Calendar, Tag, Image as ImageIcon, BarChart3, History, Send, Plus, Trash2, Pencil, ChevronRight, ChevronLeft, Wallet, ListOrdered, Radio, RefreshCw, MessageSquare,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABELS, type AppRole } from "@/contexts/AuthContext";
@@ -29,13 +29,21 @@ export const Route = createFileRoute("/admin")({
 function AdminPage() {
   const { isAdmin, loading } = useAuth();
   const nav = useNavigate();
+  const [openReports, setOpenReports] = useState(0);
   useEffect(() => { if (!loading && !isAdmin) nav({ to: "/" }); }, [isAdmin, loading, nav]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    const loadReports = () => supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open").then(({ count }) => setOpenReports(count ?? 0));
+    loadReports();
+    const ch = supabase.channel("admin-open-report-count").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, loadReports).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isAdmin]);
   if (loading) return <Layout><div className="container py-10">Loading…</div></Layout>;
   if (!isAdmin) return null;
 
   return (
     <Layout>
-      <div className="container py-8 space-y-6">
+      <div className="container w-full py-5 sm:py-8 space-y-5 sm:space-y-6 overflow-x-hidden">
         <div className="flex items-center gap-2 flex-wrap">
           <Shield className="h-6 w-6 text-accent" />
           <h1 className="text-3xl font-bold gradient-emerald-text">Admin Console</h1>
@@ -43,8 +51,8 @@ function AdminPage() {
         </div>
 
         <Stats />
-        <Tabs defaultValue="users">
-          <TabsList className="flex flex-wrap h-auto justify-start">
+        <Tabs defaultValue="users" className="w-full">
+          <TabsList className="grid h-auto w-full grid-cols-2 justify-start gap-1 overflow-visible rounded-xl bg-card/70 p-1 sm:grid-cols-3 lg:flex lg:flex-wrap">
             <TabsTrigger value="users"><Users className="h-3 w-3 mr-1" />Users</TabsTrigger>
             <TabsTrigger value="matches"><Trophy className="h-3 w-3 mr-1" />Matches</TabsTrigger>
             <TabsTrigger value="events"><Calendar className="h-3 w-3 mr-1" />Events</TabsTrigger>
@@ -53,7 +61,7 @@ function AdminPage() {
             <TabsTrigger value="leaderboard"><ListOrdered className="h-3 w-3 mr-1" />Leaderboard</TabsTrigger>
             <TabsTrigger value="promos"><Tag className="h-3 w-3 mr-1" />Promo Codes</TabsTrigger>
             <TabsTrigger value="content"><Megaphone className="h-3 w-3 mr-1" />Content</TabsTrigger>
-            <TabsTrigger value="tickets"><Ticket className="h-3 w-3 mr-1" />Tickets</TabsTrigger>
+            <TabsTrigger value="tickets" className="relative"><Ticket className="h-3 w-3 mr-1" />Reports{openReports > 0 && <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">{openReports}</Badge>}</TabsTrigger>
             <TabsTrigger value="tracker"><Radio className="h-3 w-3 mr-1" />Tracker</TabsTrigger>
             <TabsTrigger value="appeals"><AlertTriangle className="h-3 w-3 mr-1" />Appeals</TabsTrigger>
             <TabsTrigger value="notify"><Send className="h-3 w-3 mr-1" />Notify</TabsTrigger>
