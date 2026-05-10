@@ -170,7 +170,7 @@ function UsersPanel() {
           <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
-            {(["viewer", "shooter", "gang_leader", "registered", "moderator", "admin"] as AppRole[]).map((r) => (
+            {(["viewer", "shooter", "gang_leader", "registered", "sponsor", "moderator", "admin"] as AppRole[]).map((r) => (
               <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
             ))}
           </SelectContent>
