@@ -730,11 +730,32 @@ function TokensPanel() {
 /* ============================ PROMO CODES ============================ */
 function PromoPanel() {
   const [codes, setCodes] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, any>>({});
+  const [redemptions, setRedemptions] = useState<Record<string, any[]>>({});
   const [draft, setDraft] = useState({ code: "", amount: 100, usage_limit: 1, expires_at: "" });
 
   async function load() {
-    const { data } = await supabase.from("promo_codes").select("*").order("created_at", { ascending: false });
-    setCodes(data ?? []);
+    const [{ data: codeRows }, { data: requestRows }] = await Promise.all([
+      supabase.from("promo_codes").select("*").order("created_at", { ascending: false }),
+      supabase.from("promo_code_requests").select("*").order("created_at", { ascending: false }),
+    ]);
+    setCodes(codeRows ?? []); setRequests(requestRows ?? []);
+    const ids = Array.from(new Set([...(requestRows ?? []).map((r: any) => r.user_id), ...(codeRows ?? []).map((c: any) => c.created_by).filter(Boolean)]));
+    if (ids.length) {
+      const { data: p } = await supabase.from("profiles").select("id,full_name,email").in("id", ids);
+      const m: Record<string, any> = {}; (p ?? []).forEach((x: any) => { m[x.id] = x; }); setProfiles(m);
+    }
+    const promoIds = (codeRows ?? []).map((c: any) => c.id);
+    if (promoIds.length) {
+      const { data: reds } = await supabase.from("promo_redemptions").select("*").in("promo_id", promoIds).order("created_at", { ascending: false });
+      const users = Array.from(new Set((reds ?? []).map((r: any) => r.user_id)));
+      const { data: userRows } = users.length ? await supabase.from("profiles").select("id,full_name,email").in("id", users) : { data: [] as any[] };
+      const userMap = new Map((userRows ?? []).map((u: any) => [u.id, u]));
+      const byPromo: Record<string, any[]> = {};
+      (reds ?? []).forEach((r: any) => { (byPromo[r.promo_id] ??= []).push({ ...r, profile: userMap.get(r.user_id) }); });
+      setRedemptions(byPromo);
+    }
   }
   useEffect(() => { load(); }, []);
 
@@ -748,9 +769,25 @@ function PromoPanel() {
     else { setDraft({ code: "", amount: 100, usage_limit: 1, expires_at: "" }); load(); toast.success("Promo created"); logAudit("promo_created", "promo"); }
   }
   async function toggle(id: string, val: boolean) { await supabase.from("promo_codes").update({ is_active: val }).eq("id", id); load(); }
+  async function reviewRequest(id: string, approve: boolean) {
+    const fn = approve ? "approve_promo_request" : "decline_promo_request";
+    const { error } = await supabase.rpc(fn, { _id: id, _note: approve ? "Approved by admin" : "Declined by admin" });
+    if (error) toast.error(error.message); else { toast.success(approve ? "Request approved" : "Request declined"); load(); }
+  }
 
   return (
     <div className="space-y-3">
+      <Card className="glass-strong p-4 space-y-3 border-accent/30">
+        <div className="flex items-center justify-between gap-2 flex-wrap"><div className="font-bold">Sponsor promo requests</div><Badge variant="outline">{requests.filter((r) => r.status === "pending").length} pending</Badge></div>
+        {requests.length === 0 && <p className="text-sm text-muted-foreground">No sponsor requests yet.</p>}
+        {requests.map((r) => (
+          <div key={r.id} className="rounded-xl border border-border/60 bg-background/30 p-3 flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0 flex-1"><div className="font-bold">{Number(r.amount).toLocaleString()} tokens · {r.usage_limit} use(s)</div><div className="text-xs text-muted-foreground">{profiles[r.user_id]?.full_name ?? "Sponsor"} · {new Date(r.created_at).toLocaleString()}</div>{r.reason && <div className="text-xs mt-1 whitespace-pre-wrap">{r.reason}</div>}{r.generated_code && <div className="text-xs font-mono text-primary mt-1">Generated: {r.generated_code}</div>}</div>
+            <Badge variant="outline" className="capitalize">{r.status}</Badge>
+            {r.status === "pending" && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => reviewRequest(r.id, false)}>Decline</Button><Button size="sm" className="btn-luxury" onClick={() => reviewRequest(r.id, true)}>Approve</Button></div>}
+          </div>
+        ))}
+      </Card>
       <Card className="glass-strong p-4 space-y-2">
         <div className="font-bold">Generate promo code</div>
         <div className="grid md:grid-cols-4 gap-2">
@@ -763,15 +800,18 @@ function PromoPanel() {
       </Card>
       <div className="space-y-2">
         {codes.map((c) => (
-          <Card key={c.id} className="glass p-3 flex items-center justify-between gap-3 flex-wrap">
+          <Card key={c.id} className="glass p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <div className="font-mono font-bold">{c.code}</div>
-              <div className="text-xs text-muted-foreground">{c.amount} tokens · used {c.used_count}/{c.usage_limit ?? "∞"} · {c.expires_at ? `expires ${new Date(c.expires_at).toLocaleDateString()}` : "no expiry"}</div>
+              <div className="text-xs text-muted-foreground">{c.amount} tokens · used {c.used_count}/{c.usage_limit ?? "∞"} · created by {profiles[c.created_by]?.full_name ?? "Admin"} · {c.expires_at ? `expires ${new Date(c.expires_at).toLocaleDateString()}` : "no expiry"}</div>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={c.is_active} onCheckedChange={(v) => toggle(c.id, v)} />
               <Badge variant="outline">{c.is_active ? "Active" : "Off"}</Badge>
             </div>
+            </div>
+            {(redemptions[c.id] ?? []).length > 0 && <div className="rounded-lg border border-border/50 bg-background/30 p-2 text-xs"><div className="font-semibold mb-1">Used by</div>{redemptions[c.id].map((r) => <div key={r.id} className="flex justify-between gap-2 border-b border-border/30 py-1 last:border-0"><span>{r.profile?.full_name ?? "Unknown user"}</span><span className="text-muted-foreground">{new Date(r.created_at).toLocaleString()}</span></div>)}</div>}
           </Card>
         ))}
       </div>
