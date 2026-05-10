@@ -279,25 +279,34 @@ export function TicketTrackerPanel() {
         </Card>
       )}
 
-      <Card className="p-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm">Live feed</h3>
-          <Badge variant="outline" className="text-[10px]">Last 20</Badge>
+      <Card className="p-4 space-y-3 bg-gradient-to-br from-card to-card/60 border-primary/20">
+        <div className="flex flex-wrap items-center gap-2">
+          <ListChecks className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-sm">All booked tickets</h3>
+          <Badge variant="outline" className="text-[10px]">{filteredRecent.length}/{recent.length}</Badge>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
+          <Input value={feedSearch} onChange={(e) => setFeedSearch(e.target.value)} placeholder="Search tracker, code, user…" className="h-9" />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="all">All status</option>
+            {['open','suspended','won','lost','cashed_out'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
         <div className="space-y-1.5 max-h-[420px] overflow-auto">
-          {recent.map((b) => (
+          {filteredRecent.map((b) => (
             <button
               key={b.id}
-              onClick={() => { setQuery(b.tracking_id); lookup(b.tracking_id); }}
-              className="w-full text-left flex items-center gap-2 rounded-md border border-border/40 bg-background/30 px-3 py-2 text-xs hover:bg-accent/5 transition"
+              onClick={() => { setQuery(b.bet_tracker || b.tracking_id); lookup(b.bet_tracker || b.tracking_id); }}
+              className="w-full text-left grid grid-cols-[1fr_auto] gap-2 rounded-md border border-border/40 bg-background/30 px-3 py-2 text-xs hover:bg-accent/5 transition sm:grid-cols-[130px_1fr_90px_90px_auto]"
             >
-              <span className="font-mono text-[10px] text-muted-foreground">{b.tracking_id}</span>
-              <span className="truncate flex-1">{b.profiles?.full_name ?? "—"}</span>
-              <span className="font-semibold">{fmt(b.stake)}</span>
+              <span className="font-mono text-[10px] text-muted-foreground truncate">{b.bet_tracker || b.tracking_id}</span>
+              <span className="truncate">{b.profiles?.full_name ?? "—"}</span>
+              <span className="font-semibold hidden sm:inline">{fmt(b.stake)}</span>
+              <span className="hidden sm:inline">{b.bet_selections?.length ?? 0} orders</span>
               <StatusBadge status={b.status} />
             </button>
           ))}
-          {recent.length === 0 && <p className="text-xs text-muted-foreground">No bets yet.</p>}
+          {filteredRecent.length === 0 && <p className="text-xs text-muted-foreground">No tickets found. Use Refresh after a user books a bet.</p>}
         </div>
       </Card>
     </div>
