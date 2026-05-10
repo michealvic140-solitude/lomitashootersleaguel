@@ -51,14 +51,14 @@ function Index() {
 
   return (
     <Layout>
-      <section className="relative overflow-hidden">
+      <section className="relative min-h-[560px] overflow-hidden sm:min-h-[620px]">
         <img src={hero} alt="" width={1920} height={1080} className="absolute inset-0 h-full w-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/80 to-background" />
-        <div className="container relative py-20 md:py-32">
+        <div className="container relative flex min-h-[560px] flex-col justify-center py-14 sm:min-h-[620px] md:py-32">
           <Badge variant="outline" className="border-primary/50 text-primary mb-4">
             <Flame className="h-3 w-3 mr-1" /> {tagline}
           </Badge>
-          <h1 className="text-4xl md:text-7xl font-bold leading-tight max-w-3xl">
+          <h1 className="text-4xl md:text-7xl font-bold leading-tight max-w-3xl break-words">
             Where gangs clash and{" "}
             <span className="gradient-gold-text">legends</span> are{" "}
             <span className="gradient-emerald-text">gold-plated</span>.
@@ -66,7 +66,7 @@ function Index() {
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
             The Lomita Shooters League is a virtual-token competitive shooting circuit. Pick your gang, place your wagers, and climb the leaderboard.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link to="/matches"><Button size="lg" className="btn-luxury">View Matches <ChevronRight className="h-4 w-4 ml-1" /></Button></Link>
             <Link to="/leaderboard"><Button size="lg" variant="outline" className="border-primary/40">Leaderboard</Button></Link>
             <Link to="/checkout"><Button size="lg" variant="outline" className="border-accent/40 text-accent"><Coins className="h-4 w-4 mr-1" />Buy Tokens</Button></Link>
